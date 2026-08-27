@@ -1,5 +1,5 @@
 const SAMPLE_RATE = 48_000;
-const LOCK_NAME = "facetime-control-audio-bridge";
+const LOCK_NAME = "facetime-bridge-audio";
 
 export class FaceTimeAudioError extends Error {
   constructor(code, message, details = null) {

@@ -1,10 +1,10 @@
-# facetime-control
+# facetime-bridge
 
 <p align="center">
-  <img src="assets/facetime-control-hero.jpeg" alt="Vibe Bot connecting verified incoming and outgoing FaceTime audio paths" width="960">
+  <img src="assets/facetime-bridge-hero.jpeg" alt="Vibe Bot connecting verified incoming and outgoing FaceTime audio paths" width="960">
 </p>
 
-A local macOS foundation for strict FaceTime Audio control and provider-neutral two-way audio.
+A local macOS bridge for strict FaceTime Audio control and provider-neutral two-way audio.
 
 It provides:
 
@@ -30,8 +30,8 @@ A dedicated iCloud account for the Mac that hosts the automation is recommended.
 ## Install
 
 ```bash
-git clone https://github.com/kingbootoshi/facetime-control.git
-cd facetime-control
+git clone https://github.com/kingbootoshi/facetime-bridge.git
+cd facetime-bridge
 bun run src/cli.ts setup
 ```
 
@@ -40,8 +40,8 @@ The setup wizard:
 1. Checks Homebrew.
 2. Offers to run the official BlackHole installation only after you approve it.
 3. Installs `blackhole-2ch` and `blackhole-16ch` through Homebrew.
-4. Compiles the Swift helper to `~/.local/bin/facetime-control-ax`.
-5. Writes `~/.config/facetime-control/config.json` with mode `0600`.
+4. Compiles the Swift helper to `~/.local/bin/facetime-bridge-ax`.
+5. Writes `~/.config/facetime-bridge/config.json` with mode `0600`.
 6. Prints the remaining manual macOS steps.
 
 BlackHole's official installation commands are:
@@ -57,7 +57,7 @@ BlackHole is not bundled with this project. Read its [upstream license and insta
 1. Sign in to FaceTime yourself.
 2. Make a normal FaceTime Audio call.
 3. Open **System Settings → Privacy & Security → Accessibility**.
-4. Add and enable `~/.local/bin/facetime-control-ax`.
+4. Add and enable `~/.local/bin/facetime-bridge-ax`.
 5. Allow the browser that opens the audio workbench to use the microphone when macOS asks.
 6. In FaceTime, select **BlackHole 16ch** for call output.
 7. In FaceTime, select **BlackHole 2ch** for the microphone.
@@ -74,7 +74,7 @@ The doctor fails until every required fact is available. It verifies both BlackH
 The setup wizard owns this local file:
 
 ```text
-~/.config/facetime-control/config.json
+~/.config/facetime-bridge/config.json
 ```
 
 Schema:
@@ -95,13 +95,13 @@ The file must be owned by the current user, must not be a symbolic link, and mus
 ## CLI
 
 ```bash
-facetime-control setup
-facetime-control doctor
-facetime-control probe
-facetime-control call
-facetime-control answer
-facetime-control hangup
-facetime-control audio
+facetime-bridge setup
+facetime-bridge doctor
+facetime-bridge probe
+facetime-bridge call
+facetime-bridge answer
+facetime-bridge hangup
+facetime-bridge audio
 ```
 
 During development, use:
@@ -127,7 +127,7 @@ Apple can change private FaceTime UI and Accessibility labels. This project trea
 Start the local workbench:
 
 ```bash
-facetime-control audio
+facetime-bridge audio
 ```
 
 It opens `http://127.0.0.1:5612/` in your default browser. The page fails closed when the required Chromium media APIs are unavailable.
@@ -177,7 +177,7 @@ The included workbench displays incoming audio level and can send a one-second l
 
 ```bash
 bun test
-bun build src/cli.ts --target=bun --outfile=dist/facetime-control.js
+bun build src/cli.ts --target=bun --outfile=dist/facetime-bridge.js
 ```
 
 Compile the native helper directly:
@@ -191,7 +191,7 @@ xcrun swiftc \
   native/main.swift \
   -framework AppKit \
   -framework ApplicationServices \
-  -o facetime-control-ax
+  -o facetime-bridge-ax
 ```
 
 ## License

@@ -44,7 +44,7 @@ export class NativeProtocolError extends Error {
 }
 
 export function helperPath(home = homedir()): string {
-  return join(home, ".local", "bin", "facetime-control-ax");
+  return join(home, ".local", "bin", "facetime-bridge-ax");
 }
 
 function isNativeAction(value: unknown): value is NativeAction {

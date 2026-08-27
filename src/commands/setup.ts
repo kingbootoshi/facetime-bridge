@@ -65,7 +65,7 @@ async function compileHelper(): Promise<void> {
 }
 
 async function installCliLauncher(): Promise<void> {
-  const destination = join(homedir(), ".local", "bin", "facetime-control");
+  const destination = join(homedir(), ".local", "bin", "facetime-bridge");
   const temporary = `${destination}.${randomUUID()}.tmp`;
   const entrypoint = pathToFileURL(join(PROJECT_ROOT, "src", "cli.ts")).href;
   await mkdir(dirname(destination), { recursive: true, mode: 0o755 });
@@ -125,12 +125,12 @@ export async function runSetup(): Promise<void> {
     reader.close();
   }
 
-  stdout.write(`Setup complete. Configuration is stored at ${join(homedir(), ".config", "facetime-control", "config.json")} with mode 0600.\n`);
+  stdout.write(`Setup complete. Configuration is stored at ${join(homedir(), ".config", "facetime-bridge", "config.json")} with mode 0600.\n`);
   stdout.write("Manual steps still required:\n");
   stdout.write("1. Sign in to FaceTime yourself. A dedicated iCloud account for this Mac is recommended.\n");
   stdout.write("2. Confirm that a normal FaceTime Audio call works before using automation.\n");
   stdout.write(`3. Grant Accessibility permission manually to ${helperPath()}.\n`);
   stdout.write("4. Grant microphone permission to the browser or audio consumer when macOS asks.\n");
   stdout.write("5. In FaceTime, select BlackHole 16ch for call output and BlackHole 2ch for the microphone.\n");
-  stdout.write("6. Run facetime-control doctor, then facetime-control probe.\n");
+  stdout.write("6. Run facetime-bridge doctor, then facetime-bridge probe.\n");
 }

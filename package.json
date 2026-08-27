@@ -1,12 +1,12 @@
 {
-  "name": "facetime-control",
+  "name": "facetime-bridge",
   "version": "0.1.0",
-  "description": "Strict local FaceTime Audio control for one configured identity",
+  "description": "Local FaceTime Audio control and provider-neutral two-way audio bridge",
   "license": "MIT",
   "type": "module",
   "private": false,
   "bin": {
-    "facetime-control": "src/cli.ts"
+    "facetime-bridge": "src/cli.ts"
   },
   "scripts": {
     "start": "bun run src/cli.ts",

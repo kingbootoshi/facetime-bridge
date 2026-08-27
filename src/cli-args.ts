@@ -35,7 +35,7 @@ export function parseCliArgs(argv: readonly string[]): CliInvocation {
   return { kind: "command", command: command as CliCommand };
 }
 
-export const USAGE = `Usage: facetime-control <command>
+export const USAGE = `Usage: facetime-bridge <command>
 
 Commands:
   setup    Configure one identity and compile the local AX helper

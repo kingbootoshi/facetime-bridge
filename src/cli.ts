@@ -46,7 +46,7 @@ try {
   if (error instanceof ConfigError || error instanceof NativeProtocolError || error instanceof ProcessError) {
     process.stderr.write(`${error.name}: ${error.message}\n`);
   } else {
-    process.stderr.write("facetime-control failed unexpectedly\n");
+    process.stderr.write("facetime-bridge failed unexpectedly\n");
   }
   process.exitCode = 1;
 }

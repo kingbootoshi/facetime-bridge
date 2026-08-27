@@ -19,7 +19,7 @@ export class ConfigError extends Error {
 }
 
 export function configPath(home = homedir()): string {
-  return join(home, ".config", "facetime-control", "config.json");
+  return join(home, ".config", "facetime-bridge", "config.json");
 }
 
 function requireText(value: unknown, key: string): string {

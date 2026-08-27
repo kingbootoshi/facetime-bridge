@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 async function temporaryConfigPath(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "facetime-control-config-"));
+  const directory = await mkdtemp(join(tmpdir(), "facetime-bridge-config-"));
   directories.push(directory);
   return join(directory, "nested", "config.json");
 }

@@ -51,7 +51,7 @@ guard AXIsProcessTrusted() else {
         state: .unknown,
         authorized: false,
         action: nil,
-        message: "manual Accessibility approval is required for facetime-control-ax",
+        message: "manual Accessibility approval is required for facetime-bridge-ax",
         errorCode: "ACCESSIBILITY_NOT_TRUSTED"
     ))
     exit(1)

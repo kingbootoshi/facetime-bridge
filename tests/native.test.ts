@@ -6,7 +6,7 @@ const encoder = new TextEncoder();
 
 function result(value: unknown, exitCode = 0): ProcessResult {
   return {
-    argv: ["facetime-control-ax", "probe"],
+    argv: ["facetime-bridge-ax", "probe"],
     exitCode,
     stdout: encoder.encode(`${JSON.stringify(value)}\n`),
     stderr: new Uint8Array(),
