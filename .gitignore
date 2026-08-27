@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+*.log
+coverage/
+dist/
+.env
+config.json
+*.recording
+*.wav
+*.aiff

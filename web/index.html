@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FaceTime Control Audio Bridge</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    body { max-width: 760px; margin: 48px auto; padding: 0 20px; background: #0c0d0f; color: #f4f4f4; }
+    button { margin: 4px 8px 4px 0; padding: 10px 14px; }
+    pre { min-height: 180px; padding: 16px; background: #17191d; white-space: pre-wrap; }
+    meter { display: block; }
+    progress { width: 100%; height: 24px; }
+  </style>
+</head>
+<body>
+  <h1>Provider-neutral FaceTime audio</h1>
+  <p>Incoming: BlackHole 16ch → verified 48 kHz mono MediaStream.</p>
+  <p>Outgoing: any audio MediaStream → BlackHole 2ch.</p>
+  <button id="open">Open bridge</button>
+  <button id="tone" disabled>Send one-second test tone</button>
+  <button id="stop" disabled>Stop and release devices</button>
+  <h2>Incoming level</h2>
+  <progress id="level" max="1" value="0"></progress>
+  <h2>State</h2>
+  <pre id="state">Idle</pre>
+  <script type="module">
+    import { FaceTimeAudioBridge } from "./facetime-audio-bridge.js";
+
+    const openButton = document.querySelector("#open");
+    const toneButton = document.querySelector("#tone");
+    const stopButton = document.querySelector("#stop");
+    const state = document.querySelector("#state");
+    const level = document.querySelector("#level");
+    let bridge;
+    let meterContext;
+    let meterFrame;
+
+    function show(value) {
+      state.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    }
+
+    function startMeter(stream) {
+      meterContext = new AudioContext({ sampleRate: 48000 });
+      const source = meterContext.createMediaStreamSource(stream);
+      const analyser = meterContext.createAnalyser();
+      const silence = meterContext.createGain();
+      silence.gain.value = 0;
+      source.connect(analyser).connect(silence).connect(meterContext.destination);
+      const samples = new Float32Array(analyser.fftSize);
+      const draw = () => {
+        analyser.getFloatTimeDomainData(samples);
+        let sum = 0;
+        for (const sample of samples) sum += sample * sample;
+        level.value = Math.min(1, Math.sqrt(sum / samples.length) * 4);
+        meterFrame = requestAnimationFrame(draw);
+      };
+      draw();
+    }
+
+    openButton.addEventListener("click", async () => {
+      openButton.disabled = true;
+      show("Opening exact BlackHole devices…");
+      try {
+        bridge = await FaceTimeAudioBridge.open();
+        startMeter(bridge.incomingStream);
+        show({
+          status: "ready",
+          input: bridge.inputDevice.label,
+          output: bridge.outputDevice.label,
+          incomingFrameProof: bridge.proof,
+          integration: "Pass bridge.incomingStream to a provider. Pass its returned MediaStream to bridge.routeOutgoing(stream).",
+        });
+        toneButton.disabled = false;
+        stopButton.disabled = false;
+      } catch (error) {
+        show({ status: "unavailable", code: error.code ?? "OPEN_FAILED", message: error.message });
+        openButton.disabled = false;
+      }
+    });
+
+    toneButton.addEventListener("click", async () => {
+      const context = new AudioContext({ sampleRate: 48000 });
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const destination = context.createMediaStreamDestination();
+      gain.gain.value = 0.04;
+      oscillator.frequency.value = 440;
+      oscillator.connect(gain).connect(destination);
+      oscillator.start();
+      await bridge.routeOutgoing(destination.stream);
+      oscillator.stop(context.currentTime + 1);
+      oscillator.addEventListener("ended", async () => {
+        bridge.clearOutgoing();
+        await context.close();
+      }, { once: true });
+    });
+
+    stopButton.addEventListener("click", async () => {
+      cancelAnimationFrame(meterFrame);
+      await meterContext?.close();
+      await bridge?.stop();
+      bridge = undefined;
+      level.value = 0;
+      show("Stopped. All audio tracks and the singleton lock were released.");
+      openButton.disabled = false;
+      toneButton.disabled = true;
+      stopButton.disabled = true;
+    });
+  </script>
+</body>
+</html>

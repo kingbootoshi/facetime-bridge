@@ -1,0 +1,18 @@
+{
+  "name": "facetime-control",
+  "version": "0.1.0",
+  "description": "Strict local FaceTime Audio control for one configured identity",
+  "license": "MIT",
+  "type": "module",
+  "private": false,
+  "bin": {
+    "facetime-control": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "test": "bun test"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}
