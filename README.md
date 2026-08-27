@@ -1,5 +1,9 @@
 # facetime-control
 
+<p align="center">
+  <img src="assets/facetime-control-hero.jpeg" alt="Vibe Bot connecting verified incoming and outgoing FaceTime audio paths" width="960">
+</p>
+
 A local macOS foundation for strict FaceTime Audio control and provider-neutral two-way audio.
 
 It provides:
@@ -26,7 +30,7 @@ A dedicated iCloud account for the Mac that hosts the automation is recommended.
 ## Install
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/kingbootoshi/facetime-control.git
 cd facetime-control
 bun run src/cli.ts setup
 ```
@@ -195,3 +199,9 @@ xcrun swiftc \
 The code in this repository is MIT licensed.
 
 BlackHole is a separate project with its own GPLv3 and commercial licensing terms. This repository does not copy or distribute BlackHole source code or binaries.
+
+<p align="center">
+  <a href="https://bootoshi.ai/">bootoshi.ai</a>
+  ·
+  <a href="https://discord.gg/invite/vcu">Discord</a>
+</p>
