@@ -55,9 +55,19 @@ export function parseConfig(value: unknown): LocalConfig {
       throw new ConfigError("INVALID_CONFIG", `unknown config key: ${key}`);
     }
   }
+  const targetHandle = requireTargetHandle(record.targetHandle);
+  const targetName = requireText(record.targetName, "targetName");
+  const targetDigits = targetHandle.startsWith("+") ? targetHandle.replace(/\D/g, "") : "";
+  const nameDigits = targetName.replace(/\D/g, "");
+  if (
+    targetName.toLowerCase() === targetHandle.toLowerCase() ||
+    (targetDigits.length > 0 && nameDigits === targetDigits)
+  ) {
+    throw new ConfigError("INVALID_CONFIG", "targetName must be distinct from targetHandle");
+  }
   const parsed: LocalConfig = {
-    targetHandle: requireTargetHandle(record.targetHandle),
-    targetName: requireText(record.targetName, "targetName"),
+    targetHandle,
+    targetName,
   };
   if (record.blackHole2chLabel !== undefined) {
     parsed.blackHole2chLabel = requireText(record.blackHole2chLabel, "blackHole2chLabel");

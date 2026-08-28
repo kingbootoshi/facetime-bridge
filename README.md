@@ -8,10 +8,10 @@ A local macOS bridge for strict FaceTime Audio control and provider-neutral two-
 
 It provides:
 
-- semantic Accessibility control for `probe`, `call`, `answer`, and `hangup`
-- one configured identity with fail-closed matching
+- semantic Accessibility control for `probe`, `call`, and `answer`
+- exact configured-handle authorization bound to the action node
 - an interactive setup and read-only doctor
-- official BlackHole 2ch and 16ch installation
+- verified official BlackHole 2ch and 16ch prerequisites
 - a browser `MediaStream` bridge with no bundled AI provider
 
 It does not sign in to iCloud, bypass macOS permissions, record calls, or send credentials to a service.
@@ -32,22 +32,25 @@ A dedicated iCloud account for the Mac that hosts the automation is recommended.
 ```bash
 git clone https://github.com/kingbootoshi/facetime-bridge.git
 cd facetime-bridge
+# Apple silicon. Use /usr/local/bin/brew on Intel.
+/opt/homebrew/bin/brew install --cask blackhole-2ch blackhole-16ch
 bun run src/cli.ts setup
 ```
 
 The setup wizard:
 
-1. Checks Homebrew.
-2. Offers to run the official BlackHole installation only after you approve it.
-3. Installs `blackhole-2ch` and `blackhole-16ch` through Homebrew.
+1. Uses the fixed Homebrew path for the current architecture.
+2. Verifies both casks come from `homebrew/cask` and the official BlackHole download host.
+3. Stops before mutation when either cask is missing and prints an explicit command for only the missing cask.
 4. Compiles the Swift helper to `~/.local/bin/facetime-bridge-ax`.
-5. Writes `~/.config/facetime-bridge/config.json` with mode `0600`.
-6. Prints the remaining manual macOS steps.
+5. Creates `~/.local/bin/facetime-bridge`, which imports this checkout's `src/cli.ts`. Keep the checkout at a permanent path.
+6. Writes `~/.config/facetime-bridge/config.json` with mode `0600`.
+7. Prints the remaining manual macOS steps.
 
-BlackHole's official installation commands are:
+BlackHole's official installation command is:
 
 ```bash
-brew install blackhole-2ch blackhole-16ch
+brew install --cask blackhole-2ch blackhole-16ch
 ```
 
 BlackHole is not bundled with this project. Read its [upstream license and installation guide](https://github.com/ExistentialAudio/BlackHole) before use.
@@ -88,7 +91,7 @@ Schema:
 }
 ```
 
-`targetHandle` must be an E.164 phone number or email address. `targetName` must match the FaceTime display name. The audio labels are optional overrides.
+`targetHandle` must be an E.164 phone number or email address. Automatic control requires that exact handle on the same Accessibility node as the action. `targetName` is corroborating configuration only and never authorizes an action by itself. The audio labels are optional overrides.
 
 The file must be owned by the current user, must not be a symbolic link, and must have mode `0600`. Missing or unsafe configuration blocks control actions.
 
@@ -114,9 +117,10 @@ Control commands emit one strict JSON object. A failed authorization or an ambig
 
 ### Security behavior
 
-- `call` opens only the configured handle. It presses only one Notification Center action whose semantic text contains the configured identity and `Click to Call`.
-- `answer` presses only one incoming Notification Center action whose semantic text contains the configured identity. It does not answer or decline another caller.
-- `hangup` acts only when one connected Phone surface contains the configured identity.
+- `call` opens only the configured handle. It presses only one Notification Center action whose same Accessibility node contains the exact configured email or E.164 handle and `Click to Call`.
+- `answer` presses only one incoming Notification Center action whose same node contains the exact configured handle. It does not authorize from the display name alone.
+- Multiple exact action matches fail with `AMBIGUOUS_ACTION`.
+- `hangup` is disabled with `HANGUP_DISABLED` until a stable semantic Accessibility action is verified. It never terminates the Phone process.
 - No command uses coordinate clicks.
 - Missing, unknown, or ambiguous UI state fails closed.
 
@@ -172,6 +176,15 @@ The bridge:
 - stops source tracks, generated tracks, output playback, and the singleton lock during teardown
 
 The included workbench displays incoming audio level and can send a one-second local test tone. It does not record or upload audio.
+
+## Uninstall
+
+1. Remove Accessibility permission for `~/.local/bin/facetime-bridge-ax`.
+2. Remove browser microphone permission if it was granted only for this bridge.
+3. Delete `~/.local/bin/facetime-bridge-ax`, `~/.local/bin/facetime-bridge`, and `~/.config/facetime-bridge`.
+4. Restore the prior FaceTime input and output devices.
+5. Remove only BlackHole casks that are not used by another audio workflow.
+6. Delete the source checkout after deleting the checkout-linked launcher.
 
 ## Development
 
