@@ -64,6 +64,22 @@ func semanticAction(_ node: AXNode, labels: [String]) -> Bool {
         && node.texts.contains { equalsAny($0, labels) }
 }
 
+func isUnverifiablePhoneCallPrompt(_ surface: AXSurface) -> Bool {
+    guard surface.bundleID == "com.apple.mobilephone" else { return false }
+    let buttons = surface.nodes.filter {
+        $0.role == (kAXButtonRole as String)
+            && $0.enabled
+            && $0.actions.contains(kAXPressAction as String)
+    }
+    let callButtons = buttons.filter { semanticAction($0, labels: ["communication audio"]) }
+    let cancelButtons = buttons.filter { semanticAction($0, labels: ["Cancel"]) }
+    return buttons.count == 2 && callButtons.count == 1 && cancelButtons.count == 1
+}
+
+func unverifiablePhoneCallPrompts(in snapshot: AXSnapshot) -> [AXSurface] {
+    snapshot.surfaces.filter(isUnverifiablePhoneCallPrompt)
+}
+
 func authorizedIncomingNode(on surface: AXSurface, target: TargetIdentity?) -> AXNode? {
     guard surface.bundleID == "com.apple.notificationcenterui",
           surfaceAuthorized(surface, target: target),

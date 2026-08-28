@@ -120,6 +120,8 @@ Control commands emit one strict JSON object. A failed authorization or an ambig
 - No command uses coordinate clicks.
 - Missing, unknown, or ambiguous UI state fails closed.
 
+On macOS 26.5, Phone can show an outgoing confirmation whose Accessibility tree omits the target identity and whose exposed `AXPress` action does not operate the visible button. The bridge detects this surface and fails immediately with `UNVERIFIABLE_PHONE_PROMPT`. It does not replace identity evidence with timing, coordinates, screen capture, keyboard synthesis, or Apple-private entitlements.
+
 Apple can change private FaceTime UI and Accessibility labels. This project treats such changes as unavailable behavior instead of guessing.
 
 ## Provider-neutral audio

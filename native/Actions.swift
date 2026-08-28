@@ -92,6 +92,13 @@ func probeFaceTime(target: TargetIdentity?) -> ControlResult {
 
 func callTarget(_ target: TargetIdentity) -> ControlResult {
     let before = scanAccessibility()
+    guard unverifiablePhoneCallPrompts(in: before).isEmpty else {
+        return failure(
+            command: .call,
+            code: "PREEXISTING_PHONE_PROMPT",
+            message: "an unverifiable Phone call prompt already exists"
+        )
+    }
     guard !hasAnyOutgoingPrompt(before) else {
         return failure(command: .call, code: "PREEXISTING_PROMPT", message: "a call prompt already exists")
     }
@@ -102,6 +109,21 @@ func callTarget(_ target: TargetIdentity) -> ControlResult {
     while Date() < deadline {
         serviceMainRunLoop()
         let snapshot = scanAccessibility()
+        let phonePrompts = unverifiablePhoneCallPrompts(in: snapshot)
+        if phonePrompts.count > 1 {
+            return failure(
+                command: .call,
+                code: "AMBIGUOUS_PHONE_PROMPT",
+                message: "more than one unverifiable Phone call prompt appeared"
+            )
+        }
+        if phonePrompts.count == 1 {
+            return failure(
+                command: .call,
+                code: "UNVERIFIABLE_PHONE_PROMPT",
+                message: "Phone exposed a call prompt without the configured identity or a working semantic action"
+            )
+        }
         let candidates = outgoingCandidates(in: snapshot, target: target)
         if candidates.count > 1 {
             return failure(command: .call, code: "AMBIGUOUS_ACTION", message: "more than one authorized call action matched")
