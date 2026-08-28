@@ -1,4 +1,5 @@
-import { chmod, mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { dirname, join } from "node:path";
@@ -14,14 +15,23 @@ const PACKAGES = ["blackhole-2ch", "blackhole-16ch"] as const;
 const NATIVE_FILES = ["Types.swift", "AXTraversal.swift", "StateClassifier.swift", "Actions.swift", "main.swift"];
 const PROJECT_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
+const OFFICIAL_CASK_HOMEPAGE = "https://existential.audio/blackhole/";
+const OFFICIAL_CASK_HOST = "existential.audio";
+
+export function brewExecutableFor(arch: string): string {
+  if (arch === "arm64") return "/opt/homebrew/bin/brew";
+  if (arch === "x64") return "/usr/local/bin/brew";
+  throw new Error(`unsupported macOS architecture: ${arch}`);
+}
+
 async function findBrew(): Promise<string> {
-  const result = await runProcess(["/usr/bin/which", "brew"], { timeoutMs: 3_000 });
-  if (result.exitCode !== 0) {
-    throw new Error("Homebrew is required. Install it manually from https://brew.sh and rerun setup.");
+  const brew = brewExecutableFor(process.arch);
+  try {
+    await access(brew, constants.X_OK);
+  } catch {
+    throw new Error(`Homebrew is required at ${brew}. Install it manually from https://brew.sh and rerun setup.`);
   }
-  const path = decodeUtf8(result.stdout, "which output").trim();
-  if (!path.startsWith("/") || path.includes("\n")) throw new Error("Homebrew executable path was invalid");
-  return path;
+  return brew;
 }
 
 async function missingPackages(brew: string): Promise<string[]> {
@@ -33,15 +43,62 @@ async function missingPackages(brew: string): Promise<string[]> {
   return missing;
 }
 
-async function installPackages(brew: string): Promise<void> {
-  const child = Bun.spawn([brew, "install", ...PACKAGES], {
-    stdin: "inherit",
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  if (await child.exited !== 0) {
-    throw new Error("Homebrew could not install the required BlackHole packages");
+export function missingPackageError(brew: string, missing: readonly string[]): Error {
+  const noun = missing.length === 1 ? "package" : "packages";
+  return new Error(
+    `Missing official Homebrew ${noun}: ${missing.join(", ")}. Run explicitly: ${brew} install --cask ${missing.join(" ")}`,
+  );
+}
+
+export function validateBlackHoleCasks(value: unknown): void {
+  if (value === null || typeof value !== "object" || !("casks" in value) || !Array.isArray(value.casks)) {
+    throw new Error("untrusted BlackHole cask metadata");
   }
+  const casks: unknown[] = value.casks;
+  if (casks.length !== PACKAGES.length) throw new Error("untrusted BlackHole cask metadata");
+  for (const token of PACKAGES) {
+    const cask = casks.find(
+      (candidate) =>
+        candidate !== null && typeof candidate === "object" && "token" in candidate && candidate.token === token,
+    );
+    if (
+      !cask ||
+      typeof cask !== "object" ||
+      !("tap" in cask) ||
+      cask.tap !== "homebrew/cask" ||
+      !("homepage" in cask) ||
+      cask.homepage !== OFFICIAL_CASK_HOMEPAGE ||
+      !("url" in cask) ||
+      typeof cask.url !== "string"
+    ) {
+      throw new Error("untrusted BlackHole cask metadata");
+    }
+    let url: URL;
+    try {
+      url = new URL(cask.url);
+    } catch {
+      throw new Error("untrusted BlackHole cask metadata");
+    }
+    if (url.protocol !== "https:" || url.hostname !== OFFICIAL_CASK_HOST || !url.pathname.startsWith("/downloads/BlackHole")) {
+      throw new Error("untrusted BlackHole cask metadata");
+    }
+  }
+}
+
+async function verifyPackages(brew: string): Promise<void> {
+  const result = await runProcess([brew, "info", "--cask", "--json=v2", ...PACKAGES], {
+    timeoutMs: 30_000,
+    stdoutByteCap: 256 * 1024,
+    stderrByteCap: 64 * 1024,
+  });
+  if (result.exitCode !== 0) throw new Error("Homebrew could not inspect the required BlackHole packages");
+  let metadata: unknown;
+  try {
+    metadata = JSON.parse(decodeUtf8(result.stdout, "Homebrew cask metadata"));
+  } catch {
+    throw new Error("Homebrew returned invalid BlackHole cask metadata");
+  }
+  validateBlackHoleCasks(metadata);
 }
 
 async function compileHelper(): Promise<void> {
@@ -90,24 +147,14 @@ async function askRequired(reader: ReturnType<typeof createInterface>, label: st
   }
 }
 
-async function askYesNo(reader: ReturnType<typeof createInterface>, label: string): Promise<boolean> {
-  const value = (await reader.question(`${label} [y/N] `)).trim().toLowerCase();
-  return value === "y" || value === "yes";
-}
-
 export async function runSetup(): Promise<void> {
   if (process.platform !== "darwin") throw new Error("setup is available only on macOS");
   const brew = await findBrew();
+  await verifyPackages(brew);
   const missing = await missingPackages(brew);
+  if (missing.length > 0) throw missingPackageError(brew, missing);
   const reader = createInterface({ input: stdin, output: stdout });
   try {
-    if (missing.length > 0) {
-      stdout.write(`Missing official Homebrew packages: ${missing.join(", ")}\n`);
-      if (!(await askYesNo(reader, "Run: brew install blackhole-2ch blackhole-16ch?"))) {
-        throw new Error("BlackHole installation was declined; setup made no package change");
-      }
-      await installPackages(brew);
-    }
 
     const targetHandle = await askRequired(reader, "Authorized FaceTime handle (example: user@example.com): ");
     const targetName = await askRequired(reader, "Exact FaceTime display name (example: Example User): ");
