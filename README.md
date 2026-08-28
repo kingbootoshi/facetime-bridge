@@ -11,7 +11,7 @@ It provides:
 - semantic Accessibility control for `probe`, `call`, `answer`, and `hangup`
 - one configured identity with fail-closed matching
 - an interactive setup and read-only doctor
-- official BlackHole 2ch and 16ch installation
+- verified official BlackHole 2ch and 16ch prerequisites
 - a browser `MediaStream` bridge with no bundled AI provider
 
 It does not sign in to iCloud, bypass macOS permissions, record calls, or send credentials to a service.
@@ -32,22 +32,25 @@ A dedicated iCloud account for the Mac that hosts the automation is recommended.
 ```bash
 git clone https://github.com/kingbootoshi/facetime-bridge.git
 cd facetime-bridge
+# Apple silicon. Use /usr/local/bin/brew on Intel.
+/opt/homebrew/bin/brew install --cask blackhole-2ch blackhole-16ch
 bun run src/cli.ts setup
 ```
 
 The setup wizard:
 
-1. Checks Homebrew.
-2. Offers to run the official BlackHole installation only after you approve it.
-3. Installs `blackhole-2ch` and `blackhole-16ch` through Homebrew.
+1. Uses the fixed Homebrew path for the current architecture.
+2. Verifies both installed casks come from `homebrew/cask`.
+3. Stops before mutation when either cask is missing and prints an explicit command for only the missing cask.
 4. Compiles the Swift helper to `~/.local/bin/facetime-bridge-ax`.
-5. Writes `~/.config/facetime-bridge/config.json` with mode `0600`.
-6. Prints the remaining manual macOS steps.
+5. Creates `~/.local/bin/facetime-bridge`, which imports this checkout's `src/cli.ts`. Keep the checkout at a permanent path.
+6. Writes `~/.config/facetime-bridge/config.json` with mode `0600`.
+7. Prints the remaining manual macOS steps.
 
-BlackHole's official installation commands are:
+BlackHole's official installation command is:
 
 ```bash
-brew install blackhole-2ch blackhole-16ch
+brew install --cask blackhole-2ch blackhole-16ch
 ```
 
 BlackHole is not bundled with this project. Read its [upstream license and installation guide](https://github.com/ExistentialAudio/BlackHole) before use.
@@ -172,6 +175,15 @@ The bridge:
 - stops source tracks, generated tracks, output playback, and the singleton lock during teardown
 
 The included workbench displays incoming audio level and can send a one-second local test tone. It does not record or upload audio.
+
+## Uninstall
+
+1. Remove Accessibility permission for `~/.local/bin/facetime-bridge-ax`.
+2. Remove browser microphone permission if it was granted only for this bridge.
+3. Delete `~/.local/bin/facetime-bridge-ax`, `~/.local/bin/facetime-bridge`, and `~/.config/facetime-bridge`.
+4. Restore the prior FaceTime input and output devices.
+5. Remove only BlackHole casks that are not used by another audio workflow.
+6. Delete the source checkout after deleting the checkout-linked launcher.
 
 ## Development
 

@@ -5,7 +5,7 @@ import { NativeProtocolError } from "./native.ts";
 import { ProcessError } from "./process.ts";
 import { runControlCommand } from "./commands/control.ts";
 import { runDoctor } from "./commands/doctor.ts";
-import { runSetup } from "./commands/setup.ts";
+import { runSetup, SetupError } from "./commands/setup.ts";
 import { runAudioDemo } from "./commands/audio.ts";
 
 async function main(): Promise<number> {
@@ -43,7 +43,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  if (error instanceof ConfigError || error instanceof NativeProtocolError || error instanceof ProcessError) {
+  if (error instanceof ConfigError || error instanceof NativeProtocolError || error instanceof ProcessError || error instanceof SetupError) {
     process.stderr.write(`${error.name}: ${error.message}\n`);
   } else {
     process.stderr.write("facetime-bridge failed unexpectedly\n");
