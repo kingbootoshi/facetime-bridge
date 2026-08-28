@@ -40,7 +40,7 @@ bun run src/cli.ts setup
 The setup wizard:
 
 1. Uses the fixed Homebrew path for the current architecture.
-2. Verifies both casks come from `homebrew/cask` and the official BlackHole download host.
+2. Verifies both installed casks come from `homebrew/cask`.
 3. Stops before mutation when either cask is missing and prints an explicit command for only the missing cask.
 4. Compiles the Swift helper to `~/.local/bin/facetime-bridge-ax`.
 5. Creates `~/.local/bin/facetime-bridge`, which imports this checkout's `src/cli.ts`. Keep the checkout at a permanent path.

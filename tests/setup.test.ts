@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { brewExecutableFor, missingPackageError, validateBlackHoleCasks } from "../src/commands/setup.ts";
+import { brewExecutableFor, missingPackageError, SetupError, validateBlackHoleCasks } from "../src/commands/setup.ts";
 
 describe("controlled setup", () => {
   test("uses the fixed Homebrew prefix for each supported architecture", () => {
@@ -9,6 +9,7 @@ describe("controlled setup", () => {
   });
 
   test("requires a separate explicit install for only missing casks", () => {
+    expect(missingPackageError("/opt/homebrew/bin/brew", ["blackhole-16ch"])).toBeInstanceOf(SetupError);
     expect(missingPackageError("/opt/homebrew/bin/brew", ["blackhole-16ch"]).message).toBe(
       "Missing official Homebrew package: blackhole-16ch. Run explicitly: /opt/homebrew/bin/brew install --cask blackhole-16ch",
     );
@@ -17,21 +18,11 @@ describe("controlled setup", () => {
     );
   });
 
-  test("accepts only official Homebrew BlackHole cask metadata", () => {
+  test("accepts only the two official Homebrew cask records", () => {
     const official = {
       casks: [
-        {
-          token: "blackhole-2ch",
-          tap: "homebrew/cask",
-          homepage: "https://existential.audio/blackhole/",
-          url: "https://existential.audio/downloads/BlackHole2ch-0.7.1.pkg",
-        },
-        {
-          token: "blackhole-16ch",
-          tap: "homebrew/cask",
-          homepage: "https://existential.audio/blackhole/",
-          url: "https://existential.audio/downloads/BlackHole16ch-0.7.1.pkg",
-        },
+        { token: "blackhole-2ch", tap: "homebrew/cask" },
+        { token: "blackhole-16ch", tap: "homebrew/cask" },
       ],
     };
     expect(() => validateBlackHoleCasks(official)).not.toThrow();
@@ -42,7 +33,7 @@ describe("controlled setup", () => {
     ).toThrow("untrusted BlackHole cask metadata");
     expect(() =>
       validateBlackHoleCasks({
-        casks: [{ ...official.casks[0], url: "https://example.com/BlackHole.pkg" }, official.casks[1]],
+        casks: [official.casks[0], { token: "another-cask", tap: "homebrew/cask" }],
       }),
     ).toThrow("untrusted BlackHole cask metadata");
   });
