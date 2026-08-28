@@ -4,8 +4,10 @@ Status: Accepted
 
 ## Decision
 
-Validate Accessibility surfaces and audio devices before action. Verify UI and audio behavior on the real macOS surface before release.
+Capture the real Accessibility hierarchy before changing identity, action, or state selectors. Redact personal values without changing roles, attributes, actions, or containment.
+
+Validate Accessibility surfaces and audio devices before action. Verify every mutating control command and audio path on the real supported macOS surface before release. A changed UI hierarchy becomes unavailable until its fixture and classifier are updated.
 
 ## Enforcement
 
-Doctor output, probe command, browser workbench, and release checklist.
+The fixture capture tool, doctor output, probe command, browser workbench, full-lifecycle fixtures, and release smoke checklist.

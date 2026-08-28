@@ -26,9 +26,21 @@ describe("configuration authority", () => {
     });
   });
 
+  test("accepts a one-grapheme Unicode corroborating name", () => {
+    expect(parseConfig({ targetHandle: "emoji@example.com", targetName: "😀" })).toEqual({
+      targetHandle: "emoji@example.com",
+      targetName: "😀",
+    });
+  });
+
   test("rejects unknown keys and unsafe handles", () => {
     expect(() => parseConfig({ targetHandle: "https://example.com", targetName: "Example User" })).toThrow(ConfigError);
     expect(() => parseConfig({ targetHandle: "user@example.com", targetName: "Example User", fallback: true })).toThrow(ConfigError);
+  });
+
+  test("rejects unsafe corroborating display names", () => {
+    expect(() => parseConfig({ targetHandle: "user@example.com", targetName: "user@example.com" })).toThrow(ConfigError);
+    expect(() => parseConfig({ targetHandle: "+15551234567", targetName: "Call +1 555 123 4567" })).toThrow(ConfigError);
   });
 
   test("writes and loads an owned 0600 file", async () => {

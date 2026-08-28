@@ -83,17 +83,25 @@ struct TargetIdentity {
             options: .regularExpression
         ) != nil
         let unsafeName = name.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F }
+        let normalizedHandleDigits = String(handle.filter(\.isNumber))
+        let normalizedNameDigits = String(name.filter(\.isNumber))
         guard handle == trimmedHandle, handle.count <= 512, e164 || email else {
             throw ArgumentError.invalidTarget
         }
-        guard !name.isEmpty, name == trimmedName, name.count <= 512, !unsafeName else {
+        guard !name.isEmpty,
+              name == trimmedName,
+              name.count <= 512,
+              !unsafeName,
+              name.lowercased() != handle.lowercased(),
+              !(e164 && normalizedNameDigits == normalizedHandleDigits) else {
             throw ArgumentError.invalidTarget
         }
         self.handle = handle
         self.name = name
-        let normalized = String(handle.filter(\.isNumber))
-        digits = normalized.count >= 10 ? normalized : nil
-        nationalDigits = normalized.count > 10 ? String(normalized.suffix(10)) : (normalized.count == 10 ? normalized : nil)
+        digits = e164 ? normalizedHandleDigits : nil
+        nationalDigits = e164 && normalizedHandleDigits.count > 10
+            ? String(normalizedHandleDigits.suffix(10))
+            : nil
     }
 }
 
