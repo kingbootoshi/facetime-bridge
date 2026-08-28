@@ -8,10 +8,10 @@ A local macOS bridge for strict FaceTime Audio control and provider-neutral two-
 
 It provides:
 
-- semantic Accessibility control for `probe`, `call`, `answer`, and `hangup`
-- one configured identity with fail-closed matching
+- semantic Accessibility control for `probe`, `call`, and `answer`
+- exact configured-handle authorization bound to the action node
 - an interactive setup and read-only doctor
-- official BlackHole 2ch and 16ch installation
+- verified official BlackHole 2ch and 16ch prerequisites
 - a browser `MediaStream` bridge with no bundled AI provider
 
 It does not sign in to iCloud, bypass macOS permissions, record calls, or send credentials to a service.
@@ -88,7 +88,7 @@ Schema:
 }
 ```
 
-`targetHandle` must be an E.164 phone number or email address. `targetName` must match the FaceTime display name. The audio labels are optional overrides.
+`targetHandle` must be an E.164 phone number or email address. Automatic control requires that exact handle on the same Accessibility node as the action. `targetName` is corroborating configuration only and never authorizes an action by itself. The audio labels are optional overrides.
 
 The file must be owned by the current user, must not be a symbolic link, and must have mode `0600`. Missing or unsafe configuration blocks control actions.
 
@@ -114,9 +114,10 @@ Control commands emit one strict JSON object. A failed authorization or an ambig
 
 ### Security behavior
 
-- `call` opens only the configured handle. It presses only one Notification Center action whose semantic text contains the configured identity and `Click to Call`.
-- `answer` presses only one incoming Notification Center action whose semantic text contains the configured identity. It does not answer or decline another caller.
-- `hangup` acts only when one connected Phone surface contains the configured identity.
+- `call` opens only the configured handle. It presses only one Notification Center action whose same Accessibility node contains the exact configured email or E.164 handle and `Click to Call`.
+- `answer` presses only one incoming Notification Center action whose same node contains the exact configured handle. It does not authorize from the display name alone.
+- Multiple exact action matches fail with `AMBIGUOUS_ACTION`.
+- `hangup` is disabled with `HANGUP_DISABLED` until a stable semantic Accessibility action is verified. It never terminates the Phone process.
 - No command uses coordinate clicks.
 - Missing, unknown, or ambiguous UI state fails closed.
 
@@ -172,6 +173,7 @@ The bridge:
 - stops source tracks, generated tracks, output playback, and the singleton lock during teardown
 
 The included workbench displays incoming audio level and can send a one-second local test tone. It does not record or upload audio.
+
 
 ## Development
 

@@ -128,9 +128,10 @@ func answerTarget(_ target: TargetIdentity) -> ControlResult {
     while Date() < deadline {
         serviceMainRunLoop()
         let snapshot = scanAccessibility()
-        let matches = snapshot.surfaces.compactMap { surface -> ActionCandidate? in
-            guard let node = authorizedIncomingNode(on: surface, target: target) else { return nil }
-            return ActionCandidate(surface: surface, node: node)
+        let matches = snapshot.surfaces.flatMap { surface in
+            authorizedIncomingNodes(on: surface, target: target).map {
+                ActionCandidate(surface: surface, node: $0)
+            }
         }
         if matches.count > 1 {
             return failure(command: .answer, code: "AMBIGUOUS_ACTION", message: "more than one authorized answer action matched")
@@ -152,26 +153,10 @@ func answerTarget(_ target: TargetIdentity) -> ControlResult {
 }
 
 func hangupTarget(_ target: TargetIdentity) -> ControlResult {
-    let snapshot = scanAccessibility()
-    let current = state(of: snapshot, target: target)
-    guard current.state == .connected, current.authorized else {
-        return failure(command: .hangup, code: "NO_AUTHORIZED_CALL", message: "no authorized connected call is active", evidence: current)
-    }
-    let phoneSurfaces = snapshot.surfaces.filter {
-        $0.bundleID == "com.apple.mobilephone"
-            && surfaceAuthorized($0, target: target)
-            && state(of: $0, target: target).state == .connected
-    }
-    guard phoneSurfaces.count == 1, let phone = phoneSurfaces.first else {
-        return failure(command: .hangup, code: "AMBIGUOUS_PHONE_SURFACE", message: "the authorized call did not map to one Phone process", evidence: current)
-    }
-    guard let application = NSRunningApplication(processIdentifier: phone.pid),
-          application.bundleIdentifier == "com.apple.mobilephone",
-          application.terminate() else {
-        return failure(command: .hangup, code: "TERMINATE_FAILED", message: "Phone refused graceful termination", evidence: current)
-    }
-    guard let confirmed = waitForState([.idle, .ended], target: target, deadline: Date().addingTimeInterval(confirmationDeadline)) else {
-        return failure(command: .hangup, code: "CONFIRMATION_TIMEOUT", message: "the call did not enter ended state", evidence: current)
-    }
-    return result(command: .hangup, ok: true, evidence: confirmed, action: .hungUp, message: "authorized call ended")
+    _ = target
+    return failure(
+        command: .hangup,
+        code: "HANGUP_DISABLED",
+        message: "automatic hangup is disabled until a semantic Accessibility action can be verified"
+    )
 }
