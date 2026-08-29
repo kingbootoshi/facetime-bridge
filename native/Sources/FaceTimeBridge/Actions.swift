@@ -45,11 +45,18 @@ private func serviceMainRunLoop() {
 }
 
 private func waitForState(_ accepted: Set<CallState>, target: TargetIdentity, deadline: Date) -> StateEvidence? {
+    var lastLogged: CallState?
     while Date() < deadline {
         serviceMainRunLoop()
         let evidence = state(of: scanAccessibility(), target: target)
+        if evidence.state != lastLogged {
+            ftbLog("waitForState: state=\(evidence.state) authorized=\(evidence.authorized) accepted=\(accepted)")
+            lastLogged = evidence.state
+        }
         if accepted.contains(evidence.state) { return evidence }
     }
+    ftbLog("waitForState: TIMEOUT accepted=\(accepted) lastState=\(String(describing: lastLogged))")
+    dumpFlightSnapshot(target: target, reason: "confirm-timeout")
     return nil
 }
 
@@ -141,7 +148,10 @@ func answerTarget(_ target: TargetIdentity) -> ControlResult {
             return failure(command: .answer, code: "AMBIGUOUS_ACTION", message: "more than one authorized answer action matched")
         }
         if let candidate = matches.first {
-            guard press(candidate) == .success else {
+            ftbLog("answer: authorized ring matched, pressing")
+            let pressResult = press(candidate)
+            ftbLog("answer: press result=\(pressResult.rawValue)")
+            guard pressResult == .success else {
                 return failure(command: .answer, code: "PRESS_FAILED", message: "the authorized answer action could not be pressed")
             }
             guard let confirmed = waitForState([.connected], target: target, deadline: Date().addingTimeInterval(confirmationDeadline)) else {
