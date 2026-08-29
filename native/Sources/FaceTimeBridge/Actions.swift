@@ -44,11 +44,61 @@ private func serviceMainRunLoop() {
     _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(pollInterval))
 }
 
+// Call authority is established at action time - an identity-verified press of an
+// Answer or Call control - and carried as this in-process token, because the live
+// com.apple.mobilephone surface exposes no caller identity. Connected evidence
+// counts as authorized, and hangup may terminate the Phone process, only while
+// the token is live AND bound to the same Phone pid first observed connected
+// under it. The token expires after authorityLifetime, clears on any observed
+// idle/ended scan, and clears when a press fails to confirm. The daemon serves
+// gRPC on the main run loop, so access is single-threaded (nonisolated(unsafe)).
+// ponytail: pid binding plus expiry bounds the stale-token window; the remaining
+// gap is a manual call raced inside one authorityLifetime with no intervening
+// scan AND Phone reusing the same pid - practically nil. Upgrade path is
+// correlating a CallServices call UUID.
+private let authorityLifetime: TimeInterval = 4 * 3600
+
+private struct CallAuthority {
+    let granted: Date
+    var phonePid: pid_t?
+}
+
+nonisolated(unsafe) private var activeCallAuthority: CallAuthority?
+
+private func clearAuthority(_ reason: String) {
+    if activeCallAuthority != nil {
+        ftbLog("authority: cleared (\(reason))")
+        activeCallAuthority = nil
+    }
+}
+
+private func withAuthority(_ evidence: StateEvidence) -> StateEvidence {
+    if let authority = activeCallAuthority, Date() > authority.granted.addingTimeInterval(authorityLifetime) {
+        clearAuthority("expired")
+    }
+    switch evidence.state {
+    case .idle, .ended:
+        clearAuthority("observed \(evidence.state)")
+        return evidence
+    case .connected where !evidence.authorized:
+        guard let authority = activeCallAuthority, let pid = evidence.surface?.pid else { return evidence }
+        if authority.phonePid == nil {
+            activeCallAuthority?.phonePid = pid
+            ftbLog("authority: bound to Phone pid \(pid)")
+        } else if authority.phonePid != pid {
+            return evidence
+        }
+        return StateEvidence(state: .connected, duration: evidence.duration, surface: evidence.surface, authorized: true)
+    default:
+        return evidence
+    }
+}
+
 private func waitForState(_ accepted: Set<CallState>, target: TargetIdentity, deadline: Date) -> StateEvidence? {
     var lastLogged: CallState?
     while Date() < deadline {
         serviceMainRunLoop()
-        let evidence = state(of: scanAccessibility(), target: target)
+        let evidence = withAuthority(state(of: scanAccessibility(), target: target))
         if evidence.state != lastLogged {
             ftbLog("waitForState: state=\(evidence.state) authorized=\(evidence.authorized) accepted=\(accepted)")
             lastLogged = evidence.state
@@ -97,7 +147,7 @@ private func hasUnverifiedIncomingCall(_ snapshot: AXSnapshot) -> Bool {
 }
 
 func probeFaceTime(target: TargetIdentity?) -> ControlResult {
-    let evidence = state(of: scanAccessibility(), target: target)
+    let evidence = withAuthority(state(of: scanAccessibility(), target: target))
     return result(command: .probe, ok: true, evidence: evidence, message: "FaceTime state inspected")
 }
 
@@ -126,7 +176,10 @@ func callTarget(_ target: TargetIdentity) -> ControlResult {
         guard press(candidate) == .success else {
             return failure(command: .call, code: "PRESS_FAILED", message: "the authorized call action could not be pressed")
         }
+        activeCallAuthority = CallAuthority(granted: Date(), phonePid: nil)
+        ftbLog("authority: granted by authorized call press")
         guard let confirmed = waitForState([.dialing, .connected], target: target, deadline: Date().addingTimeInterval(confirmationDeadline)) else {
+            clearAuthority("call confirmation timeout")
             return failure(command: .call, code: "CONFIRMATION_TIMEOUT", message: "the call did not enter dialing or connected state")
         }
         return result(command: .call, ok: true, evidence: confirmed, action: .confirmed, message: "authorized call started")
@@ -154,7 +207,10 @@ func answerTarget(_ target: TargetIdentity) -> ControlResult {
             guard pressResult == .success else {
                 return failure(command: .answer, code: "PRESS_FAILED", message: "the authorized answer action could not be pressed")
             }
+            activeCallAuthority = CallAuthority(granted: Date(), phonePid: nil)
+            ftbLog("authority: granted by authorized answer press")
             guard let confirmed = waitForState([.connected], target: target, deadline: Date().addingTimeInterval(confirmationDeadline)) else {
+                clearAuthority("answer confirmation timeout")
                 return failure(command: .answer, code: "CONFIRMATION_TIMEOUT", message: "the call did not enter connected state")
             }
             return result(command: .answer, ok: true, evidence: confirmed, action: .answered, message: "authorized call answered")
@@ -168,17 +224,17 @@ func answerTarget(_ target: TargetIdentity) -> ControlResult {
 
 func hangupTarget(_ target: TargetIdentity) -> ControlResult {
     let snapshot = scanAccessibility()
-    let current = state(of: snapshot, target: target)
-    guard current.state == .connected, current.authorized else {
+    let current = withAuthority(state(of: snapshot, target: target))
+    guard current.state == .connected, current.authorized, let authority = activeCallAuthority, let boundPid = authority.phonePid else {
         return failure(command: .hangup, code: "NO_AUTHORIZED_CALL", message: "no authorized connected call is active", evidence: current)
     }
     let phoneSurfaces = snapshot.surfaces.filter {
         $0.bundleID == "com.apple.mobilephone"
-            && surfaceAuthorized($0, target: target)
+            && $0.pid == boundPid
             && state(of: $0, target: target).state == .connected
     }
     guard phoneSurfaces.count == 1, let phone = phoneSurfaces.first else {
-        return failure(command: .hangup, code: "AMBIGUOUS_PHONE_SURFACE", message: "the authorized call did not map to one Phone process", evidence: current)
+        return failure(command: .hangup, code: "AMBIGUOUS_PHONE_SURFACE", message: "the authority-bound Phone process is not in a connected call", evidence: current)
     }
     guard let application = NSRunningApplication(processIdentifier: phone.pid),
           application.bundleIdentifier == "com.apple.mobilephone",
