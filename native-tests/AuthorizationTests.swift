@@ -17,7 +17,8 @@ private func node(
     help: String = "",
     identifier: String = "",
     enabled: Bool = true,
-    actions: [String] = []
+    actions: [String] = [],
+    parentIndex: Int? = nil
 ) -> AXNode {
     AXNode(
         element: AXUIElementCreateSystemWide(),
@@ -28,7 +29,8 @@ private func node(
         value: value,
         help: help,
         enabled: enabled,
-        actions: actions
+        actions: actions,
+        parentIndex: parentIndex
     )
 }
 
@@ -39,47 +41,27 @@ private func surface(_ nodes: [AXNode]) -> AXSurface {
 @main
 struct AuthorizationTests {
     static func main() throws {
-        let target = try TargetIdentity(handle: "ann@example.com", name: "Ann")
-        let sameNameDifferentHandle = try TargetIdentity(handle: "other@example.com", name: "Ann")
-        let kelvinTarget = try TargetIdentity(handle: "kate@example.com", name: "Kate")
-        let longSTarget = try TargetIdentity(handle: "sam@example.com", name: "Sam")
-        let phoneTarget = try TargetIdentity(handle: "+15551234567", name: "Alice")
-        let minimumPhoneTarget = try TargetIdentity(handle: "+12345678", name: "Bob")
-        _ = try TargetIdentity(handle: "emoji@example.com", name: "😀")
+        let target = try TargetIdentity(handle: "+15550101001")
+        let other = try TargetIdentity(handle: "+15550101002")
+        let minimum = try TargetIdentity(handle: "+12345678")
 
-        require(identifiesTarget("ann@example.com", target: target), "exact configured handle must authorize")
-        require(!identifiesTarget("Joanne", target: target), "display-name substring must not authorize")
-        require(!identifiesTarget("Ann", target: target), "display name alone must not authorize")
-        require(!identifiesTarget("other@example.com", target: target), "different handle must not authorize")
-        require(!identifiesTarget("prefix-ann@example.com", target: target), "embedded email must not authorize")
-        require(!identifiesTarget("ánn@example.com", target: target), "diacritic-different email must not authorize")
-        require(!identifiesTarget("Kate@example.com", target: kelvinTarget), "Unicode Kelvin sign must not fold into an ASCII handle")
+        require(identifiesTarget(target.handle, target: target), "exact E.164 identity must authorize")
+        require(identifiesTarget("+1 (555) 010-1001", target: target), "full digit-normalized identity must authorize")
+        require(!identifiesTarget("(555) 010-1001", target: target), "national suffix must not authorize")
+        require(!identifiesTarget("Untrusted Display Label", target: target), "display text must not authorize")
+        require(!identifiesTarget(other.handle, target: target), "different E.164 identity must not authorize")
         require(
-            !identifiesTarget("attacker+15551234567@example.com", target: phoneTarget),
-            "an email containing the configured phone digits must not authorize"
+            !identifiesTarget("attacker+15550101001@example.invalid", target: target),
+            "an email containing the authorized digits must not authorize"
         )
-        require(!identifiesTarget("ſam@example.com", target: longSTarget), "Unicode long s must not fold into an ASCII handle")
-        require(identifiesTarget("+12345678", target: minimumPhoneTarget), "minimum-length valid E.164 handle must authorize")
+        require(identifiesTarget(minimum.handle, target: minimum), "minimum-length valid E.164 identity must authorize")
 
-        do {
-            _ = try TargetIdentity(handle: "empty@example.com", name: "")
-            require(false, "empty display name must be rejected")
-        } catch ArgumentError.invalidTarget {
-            // Expected.
-        }
-
-        do {
-            _ = try TargetIdentity(handle: "ann@example.com", name: "ann@example.com")
-            require(false, "display name must differ from the configured handle")
-        } catch ArgumentError.invalidTarget {
-            // Expected.
-        }
-
-        do {
-            _ = try TargetIdentity(handle: "+15551234567", name: "Call +1 555 123 4567")
-            require(false, "display name must not normalize to the configured phone handle")
-        } catch ArgumentError.invalidTarget {
-            // Expected.
+        for invalid in ["", " +15550101001", "+15550101001\n", "+١٥٥٥٠١٠١٠٠١", "+05550101001", "+1234567", "+1234567890123456", "not-a-phone"] {
+            do {
+                _ = try TargetIdentity(handle: invalid)
+                require(false, "invalid E.164 identity must be rejected")
+            } catch ArgumentError.invalidTarget {
+            }
         }
 
         let exactCall = node(
@@ -87,64 +69,79 @@ struct AuthorizationTests {
             title: "Call",
             description: "Click to Call",
             value: target.handle,
-            help: target.name,
+            help: "Untrusted Display Label",
             actions: [kAXPressAction as String]
         )
-        let separateIdentity = node(title: target.name, value: target.handle)
+        let cardIdentity = node(value: "+1 (555) 010-1001", parentIndex: 0)
+        let cardCall = node(
+            role: kAXButtonRole as String,
+            title: "Call",
+            description: "Click to Call",
+            actions: [kAXPressAction as String],
+            parentIndex: 0
+        )
         let unrelatedCall = node(
             role: kAXButtonRole as String,
             title: "Call",
             description: "Click to Call",
-            actions: [kAXPressAction as String]
+            actions: [kAXPressAction as String],
+            parentIndex: 1
         )
         let wrongHandleCall = node(
             role: kAXButtonRole as String,
             title: "Call",
             description: "Click to Call",
-            value: sameNameDifferentHandle.handle,
-            help: target.name,
+            value: other.handle,
+            help: "Untrusted Display Label",
             actions: [kAXPressAction as String]
         )
 
         require(
             outgoingCandidates(in: AXSnapshot(surfaces: [surface([exactCall])]), target: target).count == 1,
-            "exact handle and action on one node must authorize"
+            "exact E.164 identity on the action must authorize"
         )
         require(
-            outgoingCandidates(in: AXSnapshot(surfaces: [surface([separateIdentity, unrelatedCall])]), target: target).isEmpty,
-            "identity on one node must not authorize another node's Call action"
+            outgoingCandidates(in: AXSnapshot(surfaces: [surface([cardIdentity, cardCall])]), target: target).count == 1,
+            "exact identity and action on one card must authorize"
+        )
+        require(
+            outgoingCandidates(in: AXSnapshot(surfaces: [surface([cardIdentity, unrelatedCall])]), target: target).isEmpty,
+            "identity on one card must not authorize another card's action"
         )
         require(
             outgoingCandidates(in: AXSnapshot(surfaces: [surface([wrongHandleCall])]), target: target).isEmpty,
-            "same display name with a different handle must not authorize"
+            "display text with a different E.164 identity must not authorize"
         )
         require(
             outgoingCandidates(in: AXSnapshot(surfaces: [surface([exactCall, exactCall])]), target: target).count == 2,
             "ambiguous exact actions must remain visible to the caller and fail closed"
         )
 
-
-        let connected = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "Connected")
-        let wrongConnected = node(title: "FaceTime Audio", description: sameNameDifferentHandle.handle, value: target.name, help: "Connected")
-        require(state(of: surface([connected]), target: target).state == .connected, "exact handle must authorize connected state")
-        require(state(of: surface([wrongConnected]), target: target).state == .unknown, "same name with a different handle must not authorize state")
-        let disconnected = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "Disconnected")
+        let connected = node(
+            title: "FaceTime Audio",
+            description: target.handle,
+            value: "Untrusted Display Label",
+            help: "Connected"
+        )
+        let wrongConnected = node(
+            title: "FaceTime Audio",
+            description: other.handle,
+            value: "Untrusted Display Label",
+            help: "Connected"
+        )
+        require(state(of: surface([connected]), target: target).state == .connected, "exact E.164 identity must authorize connected state")
+        require(state(of: surface([wrongConnected]), target: target).state == .unknown, "display text must not authorize state")
+        let disconnected = node(title: "FaceTime Audio", description: target.handle, help: "Disconnected")
         require(state(of: surface([disconnected]), target: target).state == .ended, "Disconnected must not match Connected")
-        let timedConnected = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "0:12")
+        let timedConnected = node(title: "FaceTime Audio", description: target.handle, help: "0:12")
         require(state(of: surface([timedConnected]), target: target).state == .connected, "a live timer must classify connected")
-        let timedEnded = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "Call Ended 0:12")
+        let timedEnded = node(title: "FaceTime Audio", description: target.handle, help: "Call Ended 0:12")
         require(state(of: surface([timedEnded]), target: target).state == .ended, "a timed ended summary must not classify connected")
 
-        // Incoming-banner containment, digit identity, and the authority token
-        // lifecycle are owned by the in-binary fixtures that `--self-check` runs
-        // on every build; execute the same canonical proofs here.
         require(identityDigitFixturePasses(), "identity digit fixtures must pass")
         require(faceTimeIncomingFixturePasses(), "incoming banner containment fixtures must pass")
         require(authorityLifecyclePasses(), "call authority lifecycle fixtures must pass")
 
-        // Hangup is authority-gated: with no live pid-bound call authority
-        // (granted only by an identity-verified answer/call press), it must
-        // refuse before selecting any process to terminate.
         let hangup = hangupTarget(target)
         require(!hangup.ok && hangup.errorCode == "NO_AUTHORIZED_CALL", "hangup without live call authority must refuse")
 

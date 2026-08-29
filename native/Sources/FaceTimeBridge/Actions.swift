@@ -179,7 +179,7 @@ func callTarget(_ target: TargetIdentity) -> ControlResult {
         }
         guard let candidate = candidates.first else {
             if hasAnyOutgoingPrompt(snapshot) {
-                return failure(command: .call, code: "TARGET_NOT_AUTHORIZED", message: "the call prompt did not match the configured identity")
+                return failure(command: .call, code: "TARGET_NOT_AUTHORIZED", message: "the call prompt did not match the authorized E.164 number")
             }
             continue
         }
@@ -226,7 +226,7 @@ func answerTarget(_ target: TargetIdentity) -> ControlResult {
             return result(command: .answer, ok: true, evidence: confirmed, action: .answered, message: "authorized call answered")
         }
         if hasUnverifiedIncomingCall(snapshot) {
-            return failure(command: .answer, code: "CALLER_NOT_AUTHORIZED", message: "the incoming caller did not match the configured identity")
+            return failure(command: .answer, code: "CALLER_NOT_AUTHORIZED", message: "the incoming caller did not match the authorized E.164 number")
         }
     }
     return failure(command: .answer, code: "RING_TIMEOUT", message: "no authorized incoming call appeared")

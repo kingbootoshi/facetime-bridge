@@ -38,11 +38,11 @@ export function parseCliArgs(argv: readonly string[]): CliInvocation {
 export const USAGE = `Usage: facetime-bridge <command>
 
 Commands:
-  setup    Configure one identity and compile the local AX helper
+  setup    Build and install the native Swift package and CLI launcher
   doctor   Report local prerequisites without changing state
   audio    Open the provider-neutral BlackHole MediaStream bridge
   probe    Read the current FaceTime call state
-  call     Start an audio call to the configured identity
-  answer   Answer only the configured incoming caller
+  call     Start an audio call to the authorized E.164 number
+  answer   Answer only that authorized incoming number
   hangup   End only an authorized connected call
 `;

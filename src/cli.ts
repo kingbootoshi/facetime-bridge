@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { CliArgumentError, parseCliArgs, USAGE } from "./cli-args.ts";
-import { ConfigError } from "./config.ts";
+import { AuthorizedCallerError } from "./config.ts";
 import { NativeProtocolError } from "./native.ts";
 import { ProcessError } from "./process.ts";
 import { runControlCommand } from "./commands/control.ts";
@@ -43,7 +43,7 @@ async function main(): Promise<number> {
 try {
   process.exitCode = await main();
 } catch (error) {
-  if (error instanceof ConfigError || error instanceof NativeProtocolError || error instanceof ProcessError || error instanceof SetupError) {
+  if (error instanceof AuthorizedCallerError || error instanceof NativeProtocolError || error instanceof ProcessError || error instanceof SetupError) {
     process.stderr.write(`${error.name}: ${error.message}\n`);
   } else {
     process.stderr.write("facetime-bridge failed unexpectedly\n");

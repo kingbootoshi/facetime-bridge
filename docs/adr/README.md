@@ -20,3 +20,4 @@ These records define the repository's engineering rules. They contain no source-
 | [0014](0014-data-authority-is-structural.md) | One call-card owns identity, action, and state |
 | [0015](0015-semantic-control-lifecycle.md) | Mutating controls are semantic lifecycle contracts |
 | [0016](0016-setup-does-not-install-system-packages.md) | Setup does not install system packages |
+| [0017](0017-opt-in-local-call-recording.md) | Call recording is explicit, local, and non-fatal |

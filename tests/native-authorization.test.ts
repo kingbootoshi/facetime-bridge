@@ -39,12 +39,12 @@ afterAll(async () => {
   if (temporary) await rm(temporary, { recursive: true, force: true });
 });
 
-describe("native contact authorization", () => {
+describe("native caller authorization", () => {
   test("compiles the native authorization fixture", () => {
     expect(compileExitCode, compileStderr).toBe(0);
   });
 
-  test("fails closed for ambiguous or mismatched contacts and actions", () => {
+  test("fails closed for ambiguous or mismatched E.164 identities and actions", () => {
     expect(compileExitCode, compileStderr).toBe(0);
     const result = Bun.spawnSync([executable], { stdout: "pipe", stderr: "pipe" });
     expect(result.exitCode, result.stderr.toString()).toBe(0);

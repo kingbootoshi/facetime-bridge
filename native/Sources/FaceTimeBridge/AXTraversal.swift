@@ -109,17 +109,13 @@ func scanAccessibility() -> AXSnapshot {
 }
 
 func sanitizedAccessibilitySnapshot(target: TargetIdentity) -> [[String: Any]] {
-    let keywords = ["accept", "answer", "audio", "call", "facetime", "decline", "voicemail", "communication", "<target>"]
+    let keywords = ["accept", "answer", "audio", "call", "facetime", "decline", "voicemail", "communication", "<authorized-e164>"]
     return scanAccessibility().surfaces.flatMap { surface in
         surface.nodes.compactMap { node -> [String: Any]? in
             let redacted = node.texts.map { text in
-                var safe = text
-                    .replacingOccurrences(of: target.name, with: "<target>", options: [.caseInsensitive, .diacriticInsensitive])
-                    .replacingOccurrences(of: target.handle, with: "<target>", options: [.caseInsensitive, .diacriticInsensitive])
-                if let digits = target.nationalDigits {
-                    safe = safe.replacingOccurrences(of: digits, with: "<target>")
-                }
-                return safe
+                text
+                    .replacingOccurrences(of: target.handle, with: "<authorized-e164>")
+                    .replacingOccurrences(of: target.digits, with: "<authorized-e164>")
             }
             let matchingTexts = redacted.filter { text in
                 keywords.contains { semanticContains(text, $0) }

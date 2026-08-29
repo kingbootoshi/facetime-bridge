@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
 import { constants } from "node:fs";
-import { ConfigError, loadConfig } from "../config.ts";
+import { AUTHORIZED_CALLER_E164_ENV, AuthorizedCallerError, loadAuthorizedCallerE164 } from "../config.ts";
 import { helperPath, runControl } from "../native.ts";
 import { decodeUtf8, runProcess } from "../process.ts";
 
@@ -84,16 +84,19 @@ export async function collectDoctorReport(): Promise<DoctorReport> {
     detail: process.platform === "darwin" ? "running on macOS" : "macOS is required",
   });
   facts.push(await commandFact("homebrew", ["/usr/bin/which", "brew"]));
-  facts.push(await commandFact("swiftc", ["/usr/bin/xcrun", "--find", "swiftc"]));
+  facts.push(await commandFact("swift", ["/usr/bin/xcrun", "--find", "swift"]));
 
-  let labels: readonly [string, string] = ["BlackHole 2ch", "BlackHole 16ch"];
+  const labels: readonly [string, string] = ["BlackHole 2ch", "BlackHole 16ch"];
   try {
-    const config = await loadConfig();
-    labels = [config.blackHole2chLabel ?? labels[0], config.blackHole16chLabel ?? labels[1]];
-    facts.push({ name: "config", status: "available", detail: "valid identity config with mode 0600" });
+    loadAuthorizedCallerE164();
+    facts.push({
+      name: "authorized-caller",
+      status: "available",
+      detail: `${AUTHORIZED_CALLER_E164_ENV} contains a valid E.164 phone number`,
+    });
   } catch (error) {
-    const detail = error instanceof ConfigError ? error.code : "CONFIG_READ_FAILED";
-    facts.push({ name: "config", status: "unavailable", detail });
+    const detail = error instanceof AuthorizedCallerError ? error.code : "AUTHORIZED_CALLER_READ_FAILED";
+    facts.push({ name: "authorized-caller", status: "unavailable", detail });
   }
 
   let helperAvailable = true;

@@ -4,7 +4,7 @@
     "productVersion": "26.4",
     "buildVersion": "25E246"
   },
-  "scenario": "facetime-audio URL opened for <TARGET_HANDLE> before Call",
+  "scenario": "facetime-audio URL opened for <AUTHORIZED_E164> before Call",
   "surface": {
     "process": "Notification Center",
     "bundleID": "com.apple.notificationcenterui",
@@ -22,7 +22,7 @@
     ]
   },
   "observed": {
-    "targetHandleExposed": false,
+    "authorizedE164Exposed": false,
     "semanticCallActionExposed": false
   }
 }

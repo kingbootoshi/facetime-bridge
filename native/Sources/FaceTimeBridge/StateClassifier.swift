@@ -30,9 +30,9 @@ private func normalizedDigits(_ text: String) -> String {
 // running timer ("0:09", flight capture 2026-08-29T19-03-44) whose digits would
 // contaminate the sequence. Comparison stays whole-string equality - a longer
 // number that merely contains the handle must not authorize. Digits embedded in
-// an identifier ("attacker+15551234567@example.com") prove an email identity,
-// not a phone identity: any "@" or a digit adjacent to a letter disqualifies
-// the text from phone-digit matching entirely.
+// another identifier ("attacker+15550101001@example.invalid") are not a phone
+// identity: any "@" or a digit adjacent to a letter disqualifies the text from
+// phone-digit matching entirely.
 private func strippedCallDigits(_ text: String) -> String? {
     guard !text.contains("@") else { return nil }
     let range = NSRange(text.startIndex..., in: text)
@@ -45,23 +45,16 @@ private func strippedCallDigits(_ text: String) -> String? {
     return normalizedDigits(cleaned)
 }
 
-// Case folding is ASCII-only so confusables (KELVIN SIGN, long s, diacritics)
-// never fold into a configured ASCII handle.
-private func asciiLowercased(_ text: String) -> [Character] {
-    text.map { $0.isASCII && $0.isUppercase ? Character($0.lowercased()) : $0 }
-}
-
 private func identifierExtending(_ character: Character) -> Bool {
     character.isLetter || character.isNumber || ".-_+@".contains(character)
 }
 
-// The handle must appear as a whole token: an adjacent character that could
-// extend an email or handle means the text names a different identity that
-// merely embeds the configured one ("prefix-ann@example.com").
-private func containsHandleToken(_ text: String, _ handle: String) -> Bool {
-    let haystack = asciiLowercased(normalizedSemanticText(text))
-    let needle = asciiLowercased(normalizedSemanticText(handle))
-    guard !needle.isEmpty, haystack.count >= needle.count else { return false }
+// The E.164 value must appear as a whole token. Adjacent identifier characters
+// mean the text embeds the digits in another identity and cannot authorize.
+private func containsE164Token(_ text: String, _ e164: String) -> Bool {
+    let haystack = Array(normalizedSemanticText(text))
+    let needle = Array(e164)
+    guard haystack.count >= needle.count else { return false }
     for start in 0...(haystack.count - needle.count) {
         guard Array(haystack[start..<(start + needle.count)]) == needle else { continue }
         let beforeOk = start == 0 || !identifierExtending(haystack[start - 1])
@@ -74,12 +67,9 @@ private func containsHandleToken(_ text: String, _ handle: String) -> Bool {
 
 func identifiesTarget(_ text: String, target: TargetIdentity?) -> Bool {
     guard let target else { return false }
-    if target.authority == .contactName && semanticContains(text, target.name) { return true }
-    if containsHandleToken(text, target.handle) { return true }
+    if containsE164Token(text, target.handle) { return true }
     guard let digits = strippedCallDigits(text), !digits.isEmpty else { return false }
-    if let expected = target.digits, digits == expected { return true }
-    if let expected = target.nationalDigits, digits == expected { return true }
-    return false
+    return digits == target.digits
 }
 
 private func equalsAny(_ text: String, _ expected: [String]) -> Bool {
@@ -118,9 +108,14 @@ func isIncomingAudioAction(_ node: AXNode) -> Bool {
 }
 
 func authorizedIncomingNodes(on surface: AXSurface, target: TargetIdentity?) -> [AXNode] {
-    guard surfaceAuthorized(surface, target: target), let target else { return [] }
+    guard let target else { return [] }
     if surface.bundleID == "com.apple.FaceTime" {
-        return surface.nodes.filter(isIncomingAudioAction)
+        let authorizedCards = Set(surface.nodes.compactMap { node -> Int? in
+            guard node.texts.contains(where: { identifiesTarget($0, target: target) }) else { return nil }
+            return node.parentIndex
+        })
+        guard authorizedCards.count == 1, let card = authorizedCards.first else { return [] }
+        return surface.nodes.filter { isIncomingAudioAction($0) && $0.parentIndex == card }
     }
     guard surface.bundleID == "com.apple.notificationcenterui" else { return [] }
     let identityCards = surface.nodes.filter { node in
@@ -209,8 +204,8 @@ func outgoingCandidates(in snapshot: AXSnapshot, target: TargetIdentity) -> [Act
         guard surface.bundleID == "com.apple.notificationcenterui",
               state(of: surface, target: target).state == .prompt else { return [] }
         // ADR-0015 prohibits surface-wide authorization: the pressed action must
-        // itself carry the configured identity, or share its card container
-        // (parentIndex) with a node that does.
+        // itself carry the authorized E.164 identity, or share its card
+        // container (parentIndex) with a node that does.
         let cardParents = Set(surface.nodes.compactMap { node -> Int? in
             guard node.texts.contains(where: { identifiesTarget($0, target: target) }) else { return nil }
             return node.parentIndex
@@ -225,23 +220,24 @@ func outgoingCandidates(in snapshot: AXSnapshot, target: TargetIdentity) -> [Act
     }
 }
 func identityDigitFixturePasses() -> Bool {
-    let target = try! TargetIdentity(handle: "+15551234567", name: "Fixture Caller")
+    let target = try! TargetIdentity(handle: "+15550101001")
     // Live call card: bidi isolates, formatted number, appended duration timer
     // (shape from flight capture 2026-08-29T19-03-44).
-    guard identifiesTarget("\u{202A}+1 (555) 123-4567\u{202C}, FaceTime Audio - , 0:09", target: target),
-          identifiesTarget("+1 (555) 123-4567, FaceTime Audio", target: target),
-          identifiesTarget("(555) 123-4567", target: target) else { return false }
-    // A longer number merely containing the handle must not authorize,
-    // nor may timer digits complete a partial number.
-    guard !identifiesTarget("+91 555 123 45671, FaceTime Audio", target: target),
-          !identifiesTarget("+1 (555) 123-456, FaceTime Audio - , 7:00", target: target),
-          !identifiesTarget("Fixture Caller, FaceTime Audio - , 0:09", target: target) else { return false }
+    guard identifiesTarget("\u{202A}+1 (555) 010-1001\u{202C}, FaceTime Audio - , 0:09", target: target),
+          identifiesTarget("+1 (555) 010-1001, FaceTime Audio", target: target) else { return false }
+    // A national suffix or longer number must not authorize, nor may timer
+    // digits complete a partial number.
+    guard !identifiesTarget("(555) 010-1001", target: target),
+          !identifiesTarget("+91 555 010 10011, FaceTime Audio", target: target),
+          !identifiesTarget("+1 (555) 010-100, FaceTime Audio - , 1:00", target: target),
+          !identifiesTarget("Untrusted Display Label, FaceTime Audio - , 0:09", target: target) else { return false }
     return true
 }
 
-
 func faceTimeIncomingFixturePasses() -> Bool {
     let element = AXUIElementCreateApplication(0)
+    let target = try! TargetIdentity(handle: "+15550101001")
+    let other = try! TargetIdentity(handle: "+15550101002")
     let action = AXNode(
         element: element,
         role: kAXButtonRole as String,
@@ -251,29 +247,42 @@ func faceTimeIncomingFixturePasses() -> Bool {
         value: "",
         help: "",
         enabled: true,
-        actions: [kAXPressAction as String]
+        actions: [kAXPressAction as String],
+        parentIndex: 0
+    )
+    let strayAction = AXNode(
+        element: element,
+        role: kAXButtonRole as String,
+        identifier: "accept-audio",
+        title: "Accept Audio Call",
+        description: "",
+        value: "",
+        help: "",
+        enabled: true,
+        actions: [kAXPressAction as String],
+        parentIndex: 1
     )
     let caller = AXNode(
         element: element,
         role: kAXStaticTextRole as String,
         identifier: "caller",
-        title: "Fixture Caller",
+        title: "Untrusted Display Label",
         description: "FaceTime Audio",
-        value: "fixture@example.com",
+        value: "+1 (555) 010-1001",
         help: "",
         enabled: true,
-        actions: []
+        actions: [],
+        parentIndex: 0
     )
     let surface = AXSurface(pid: 0, process: "FaceTime", bundleID: "com.apple.FaceTime", nodes: [action, caller])
+    let splitSurface = AXSurface(pid: 0, process: "FaceTime", bundleID: "com.apple.FaceTime", nodes: [strayAction, caller])
     let phoneSurface = AXSurface(pid: 0, process: "Phone", bundleID: "com.apple.mobilephone", nodes: [action, caller])
-    let target = try! TargetIdentity(handle: "fixture@example.com", name: "Fixture Caller")
-    let other = try! TargetIdentity(handle: "other@example.com", name: "Other Caller")
     let bannerCard = AXNode(
         element: element,
         role: "AXGenericElement",
         identifier: "",
         title: "",
-        description: "\u{2066}Fixture Caller\u{2069}, FaceTime Audio",
+        description: "\u{2066}+1 (555) 010-1001\u{2069}, FaceTime Audio",
         value: "",
         help: "",
         enabled: true,
@@ -304,7 +313,6 @@ func faceTimeIncomingFixturePasses() -> Bool {
         actions: [kAXPressAction as String],
         parentIndex: 1
     )
-    let nameTarget = try! TargetIdentity(handle: "fixture@example.com", name: "Fixture Caller", authority: .contactName)
     let banner = AXSurface(
         pid: 0,
         process: "Notification Center",
@@ -325,12 +333,13 @@ func faceTimeIncomingFixturePasses() -> Bool {
     )
     return authorizedIncomingNodes(on: surface, target: target).count == 1
         && state(of: surface, target: target).state == .ringing
+        && authorizedIncomingNodes(on: splitSurface, target: target).isEmpty
         && authorizedIncomingNodes(on: phoneSurface, target: target).isEmpty
         && authorizedIncomingNodes(on: surface, target: other).isEmpty
-        && authorizedIncomingNodes(on: banner, target: nameTarget).count == 1
-        && authorizedIncomingNodes(on: banner, target: nameTarget).first?.texts.contains("Answer") == true
-        && state(of: banner, target: nameTarget).state == .ringing
-        && authorizedIncomingNodes(on: banner, target: target).isEmpty
-        && authorizedIncomingNodes(on: ambiguousBanner, target: nameTarget).isEmpty
-        && authorizedIncomingNodes(on: splitBanner, target: nameTarget).isEmpty
+        && authorizedIncomingNodes(on: banner, target: target).count == 1
+        && authorizedIncomingNodes(on: banner, target: target).first?.texts.contains("Answer") == true
+        && state(of: banner, target: target).state == .ringing
+        && authorizedIncomingNodes(on: banner, target: other).isEmpty
+        && authorizedIncomingNodes(on: ambiguousBanner, target: target).isEmpty
+        && authorizedIncomingNodes(on: splitBanner, target: target).isEmpty
 }

@@ -1,5 +1,4 @@
 import ApplicationServices
-import Darwin
 import Foundation
 
 struct ControlEvidence: Sendable {
@@ -12,18 +11,14 @@ struct ControlEvidence: Sendable {
 }
 
 enum ControlRunnerError: Error {
-  case invalidCommand
-  case unsafeConfig
-  case invalidConfig
+  case missingAuthorizedCallerE164
+  case invalidAuthorizedCallerE164
 }
 
 struct ControlRunner: Sendable {
-  private let configPath =
-    ProcessInfo.processInfo.environment["FACETIME_BRIDGE_CONFIG"]
-    ?? NSString(string: "~/.config/facetime-bridge/config.json").expandingTildeInPath
-  private let maximumConfigBytes = 16 * 1024
+  static let authorizedCallerEnvironmentKey = "FACETIME_BRIDGE_AUTHORIZED_CALLER_E164"
 
-  func run(_ command: Facetimebridge_V1_ControlCommand) throws -> ControlEvidence {
+  func run(_ command: ControlCommand) throws -> ControlEvidence {
     let target = try loadTarget()
     guard AXIsProcessTrusted() else {
       return ControlEvidence(
@@ -41,7 +36,6 @@ struct ControlRunner: Sendable {
     case .call: result = callTarget(target)
     case .answer: result = answerTarget(target)
     case .hangup: result = hangupTarget(target)
-    default: throw ControlRunnerError.invalidCommand
     }
     return ControlEvidence(
       ok: result.ok,
@@ -53,24 +47,14 @@ struct ControlRunner: Sendable {
     )
   }
 
-  func loadTarget() throws -> TargetIdentity {
-    var metadata = stat()
-    guard lstat(configPath, &metadata) == 0,
-          metadata.st_uid == getuid(),
-          metadata.st_mode & S_IFMT == S_IFREG,
-          metadata.st_mode & 0o777 == 0o600,
-          metadata.st_size <= maximumConfigBytes else {
-      throw ControlRunnerError.unsafeConfig
+  func loadTarget(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) throws -> TargetIdentity {
+    guard let handle = environment[Self.authorizedCallerEnvironmentKey] else {
+      throw ControlRunnerError.missingAuthorizedCallerE164
     }
-    let data = try Data(contentsOf: URL(fileURLWithPath: configPath), options: .uncached)
-    guard data.count <= maximumConfigBytes,
-          let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-          Set(object.keys).isSubset(of: ["targetHandle", "targetName", "callerAuthority", "blackHole2chLabel", "blackHole16chLabel"]),
-          let handle = object["targetHandle"] as? String,
-          let name = object["targetName"] as? String,
-          let authority = CallerAuthority(rawValue: object["callerAuthority"] as? String ?? CallerAuthority.exactHandle.rawValue),
-          let target = try? TargetIdentity(handle: handle, name: name, authority: authority) else {
-      throw ControlRunnerError.invalidConfig
+    guard let target = try? TargetIdentity(handle: handle) else {
+      throw ControlRunnerError.invalidAuthorizedCallerE164
     }
     return target
   }

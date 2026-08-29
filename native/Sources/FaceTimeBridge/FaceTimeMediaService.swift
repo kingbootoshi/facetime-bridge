@@ -5,6 +5,16 @@ func shouldAnswerIncoming(state: String, authorized: Bool) -> Bool {
   state == "ringing" && authorized
 }
 
+func controlCommand(_ command: Facetimebridge_V1_ControlCommand) throws -> ControlCommand {
+  switch command {
+  case .probe: return .probe
+  case .call: return .call
+  case .answer: return .answer
+  case .hangup: return .hangup
+  default: throw RPCError(code: .invalidArgument, message: "unsupported control command")
+  }
+}
+
 struct FaceTimeMediaService: Facetimebridge_V1_FaceTimeMedia.SimpleServiceProtocol {
   private let control = ControlRunner()
 
@@ -23,7 +33,7 @@ struct FaceTimeMediaService: Facetimebridge_V1_FaceTimeMedia.SimpleServiceProtoc
     request: Facetimebridge_V1_ControlRequest,
     context: ServerContext
   ) async throws -> Facetimebridge_V1_ControlResponse {
-    let evidence = try control.run(request.command)
+    let evidence = try control.run(controlCommand(request.command))
     return response(from: evidence)
   }
 
@@ -61,9 +71,11 @@ struct FaceTimeMediaService: Facetimebridge_V1_FaceTimeMedia.SimpleServiceProtoc
           start.channels == 1 else {
       throw RPCError(code: .invalidArgument, message: "the first audio packet must start one 24 kHz mono call")
     }
+    let recorder = try CallWaveRecorder.fromEnvironment()
 
     let bridge = AudioBridge()
     let captures = try bridge.start()
+    defer { recorder?.close() }
     let callID = start.callID
     try await response.write(.with {
       $0.callID = callID
@@ -75,6 +87,7 @@ struct FaceTimeMediaService: Facetimebridge_V1_FaceTimeMedia.SimpleServiceProtoc
     let captureTask = Task {
       var sequence: UInt64 = 0
       for await data in captures {
+        recorder?.appendCaller(data)
         sequence &+= 1
         try await response.write(.with {
           $0.callID = callID
@@ -98,6 +111,7 @@ struct FaceTimeMediaService: Facetimebridge_V1_FaceTimeMedia.SimpleServiceProtoc
       }
       switch packet.kind {
       case .playback:
+        recorder?.appendAgent(packet.pcm16)
         try bridge.enqueuePlayback(packet.pcm16)
       case .clear:
         bridge.clearPlayback()

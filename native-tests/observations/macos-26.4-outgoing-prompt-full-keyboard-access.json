@@ -4,7 +4,7 @@
     "productVersion": "26.4",
     "buildVersion": "25E246"
   },
-  "scenario": "facetime-audio URL opened for <TARGET_HANDLE> before Call",
+  "scenario": "facetime-audio URL opened for <AUTHORIZED_E164> before Call",
   "accessibility": {
     "fullKeyboardAccessEnabled": true
   },
@@ -34,7 +34,7 @@
         },
         {
           "role": "AXGenericElement",
-          "description": "<TARGET_HANDLE>",
+          "description": "<AUTHORIZED_E164>",
           "enabled": true,
           "actions": ["AXPress", "AXScrollToVisible", "AXCancel", "AXShowMenu"]
         },
@@ -54,8 +54,8 @@
     }
   },
   "observed": {
-    "targetHandleExposed": true,
-    "targetHandleExactMatch": true,
+    "authorizedE164Exposed": true,
+    "authorizedE164ExactMatch": true,
     "semanticCallActionExposed": true,
     "semanticCancelActionExposed": true,
     "identityAndActionsShareCallCard": true

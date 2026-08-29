@@ -13,13 +13,6 @@ export type ControlCommand = "probe" | "call" | "answer" | "hangup";
 export type CliCommand = "setup" | "doctor" | "audio" | ControlCommand;
 export type NativeAction = "opened" | "confirmed" | "answered" | "hung-up";
 
-export interface LocalConfig {
-  targetHandle: string;
-  targetName: string;
-  blackHole2chLabel?: string;
-  blackHole16chLabel?: string;
-}
-
 export interface NativeResponse {
   version: 1;
   ok: boolean;

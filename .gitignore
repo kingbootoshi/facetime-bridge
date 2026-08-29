@@ -4,7 +4,6 @@ node_modules/
 coverage/
 dist/
 .env
-config.json
 *.recording
 *.wav
 *.aiff

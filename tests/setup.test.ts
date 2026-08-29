@@ -1,11 +1,35 @@
 import { describe, expect, test } from "bun:test";
-import { brewExecutableFor, missingPackageError, SetupError, validateBlackHoleCasks } from "../src/commands/setup.ts";
+import {
+  brewExecutableFor,
+  missingPackageError,
+  nativePackageBuildArgv,
+  nativeReleaseExecutablePath,
+  SetupError,
+  validateBlackHoleCasks,
+} from "../src/commands/setup.ts";
 
 describe("controlled setup", () => {
   test("uses the fixed Homebrew prefix for each supported architecture", () => {
     expect(brewExecutableFor("arm64")).toBe("/opt/homebrew/bin/brew");
     expect(brewExecutableFor("x64")).toBe("/usr/local/bin/brew");
     expect(() => brewExecutableFor("unsupported")).toThrow("unsupported macOS architecture");
+  });
+
+  test("builds the Swift package release product and installs that executable", () => {
+    expect(nativePackageBuildArgv("/checkout/native")).toEqual([
+      "/usr/bin/xcrun",
+      "swift",
+      "build",
+      "--package-path",
+      "/checkout/native",
+      "-c",
+      "release",
+      "--product",
+      "facetime-bridge",
+    ]);
+    expect(nativeReleaseExecutablePath("/checkout/native")).toBe(
+      "/checkout/native/.build/release/facetime-bridge",
+    );
   });
 
   test("requires a separate explicit install for only missing casks", () => {
