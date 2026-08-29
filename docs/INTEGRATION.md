@@ -38,14 +38,22 @@ The daemon listens on a Unix socket: `~/.facetime-bridge/bridge.sock`
 ## Audio contract
 
 - **Format:** 24 kHz, mono, signed 16-bit little-endian PCM (`s16le`).
-- **Cadence:** ~100 ms packets → 2,400 samples → 4,800 bytes each.
+- **Cadence:** nominal ~20 ms packets → 480 samples → 960 bytes each.
+  AVAudioEngine may coalesce buffers, so treat packet size as variable and
+  reframe by sample count, never by packet boundaries.
 - **Direction is the packet `kind`:**
+  - `START` (1) — **you → daemon, and it must be the FIRST packet** on the
+    stream: a non-empty `call_id` you mint, `sample_rate: 24000`,
+    `channels: 1`. Anything else is refused
+    (`FaceTimeMediaService.swift audio()`).
   - `CAPTURE` (2) — caller's voice, daemon → you.
   - `PLAYBACK` (3) — your agent's voice, you → daemon.
-  - `START` (1) / `STOP` (5) — session framing from the daemon.
   - `CLEAR` (4) — flush queued playback immediately (send this for barge-in).
-  - `EVENT` (6) — out-of-band notices in the `event` field.
-- Set `call_id`, `sample_rate: 24000`, `channels: 1` on packets you send.
+  - `STOP` (5) — you → daemon; ends the stream cleanly.
+  - `EVENT` (6) — out-of-band notices in the `event` field
+    (the daemon answers your START with `event: "ready"`).
+- Every packet you send must carry the **same** `call_id` as your START,
+  plus `sample_rate: 24000`, `channels: 1`; a changed id aborts the call.
 
 ## Call lifecycle
 
@@ -53,8 +61,8 @@ The daemon listens on a Unix socket: `~/.facetime-bridge/bridge.sock`
 2. `WaitIncoming` → stream events. On `state: "ringing"` with
    `authorized: true`, send `Control(ANSWER)`.
    Outbound instead: `Control(CALL)`.
-3. Open `Audio`; on connect, consume `CAPTURE` packets and write `PLAYBACK`
-   packets.
+3. Open `Audio`; write `START` first, then consume `CAPTURE` packets and
+   write `PLAYBACK` packets. Send `STOP` to end your side cleanly.
 4. The daemon presses hangup via `Control(HANGUP)`, or the far side ends the
    call; either way you receive `state: "ended"` and the audio stream stops.
 
@@ -96,6 +104,17 @@ for await (const event of bridge.waitIncoming()) {
 }
 
 const audio = bridge.audio();
+const callId = crypto.randomUUID();
+// START must be the first packet — the daemon refuses the stream otherwise.
+audio.write({
+  callId,
+  kind: audioPacketKind.start,
+  pcm16: Buffer.alloc(0),
+  sampleRate: audioFormat.sampleRate,
+  channels: audioFormat.channels,
+  sequence: 0,
+  event: "",
+});
 audio.on("data", (packet) => {
   if (packet.kind === audioPacketKind.capture) {
     // packet.pcm16: caller voice, audioFormat.sampleRate mono s16le.
@@ -103,13 +122,14 @@ audio.on("data", (packet) => {
   }
 });
 // Speak: write playback packets produced by your TTS / realtime model.
+// Every packet reuses the same callId minted for START.
 audio.write({
-  callId: "",
+  callId,
   kind: audioPacketKind.playback,
   pcm16: myPcmChunk, // 24 kHz mono s16le
   sampleRate: audioFormat.sampleRate,
   channels: audioFormat.channels,
-  sequence: 0,
+  sequence: 1,
   event: "",
 });
 ```
