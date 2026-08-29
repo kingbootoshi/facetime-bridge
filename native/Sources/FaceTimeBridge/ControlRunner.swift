@@ -18,7 +18,9 @@ enum ControlRunnerError: Error {
 }
 
 struct ControlRunner: Sendable {
-  private let configPath = "/Users/saint/.config/facetime-bridge/config.json"
+  private let configPath =
+    ProcessInfo.processInfo.environment["FACETIME_BRIDGE_CONFIG"]
+    ?? NSString(string: "~/.config/facetime-bridge/config.json").expandingTildeInPath
   private let maximumConfigBytes = 16 * 1024
 
   func run(_ command: Facetimebridge_V1_ControlCommand) throws -> ControlEvidence {
