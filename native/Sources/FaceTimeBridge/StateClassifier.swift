@@ -154,7 +154,10 @@ func state(of surface: AXSurface, target: TargetIdentity?) -> StateEvidence {
         && authorized
         && texts.contains { semanticContains($0, "Click to Call") }
         && surface.nodes.contains { semanticAction($0, labels: outgoingLabels) }
-    if authorized && hasFaceTimeAudio && duration != nil {
+    // A visible ended label wins over a timer: "Call Ended 0:12" summarizes a
+    // finished call, and misreading it as connected re-grants dead-call authority.
+    let hasEndedLabel = texts.contains { containsAny($0, endedLabels) }
+    if authorized && hasFaceTimeAudio && duration != nil && !hasEndedLabel {
         return StateEvidence(state: .connected, duration: duration, surface: surface, authorized: true)
     }
     if authorizedLeft { return StateEvidence(state: .ended, duration: nil, surface: surface, authorized: true) }
@@ -173,9 +176,9 @@ func state(of surface: AXSurface, target: TargetIdentity?) -> StateEvidence {
         }) {
         return StateEvidence(state: .connected, duration: duration, surface: surface, authorized: false)
     }
-    // "Disconnected" semantically contains "Connected": an ended label on the
-    // same text must win before the connected substring rule.
-    if authorized && hasFaceTimeAudio && texts.contains(where: { containsAny($0, connectedLabels) && !containsAny($0, endedLabels) }) {
+    // "Disconnected" semantically contains "Connected": any ended label on the
+    // surface wins over the connected substring rule.
+    if authorized && hasFaceTimeAudio && !hasEndedLabel && texts.contains(where: { containsAny($0, connectedLabels) }) {
         return StateEvidence(state: .connected, duration: duration, surface: surface, authorized: true)
     }
     if authorized && hasFaceTimeAudio && texts.contains(where: { containsAny($0, dialingLabels) }) {

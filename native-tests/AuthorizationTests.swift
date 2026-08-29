@@ -130,6 +130,10 @@ struct AuthorizationTests {
         require(state(of: surface([wrongConnected]), target: target).state == .unknown, "same name with a different handle must not authorize state")
         let disconnected = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "Disconnected")
         require(state(of: surface([disconnected]), target: target).state == .ended, "Disconnected must not match Connected")
+        let timedConnected = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "0:12")
+        require(state(of: surface([timedConnected]), target: target).state == .connected, "a live timer must classify connected")
+        let timedEnded = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "Call Ended 0:12")
+        require(state(of: surface([timedEnded]), target: target).state == .ended, "a timed ended summary must not classify connected")
 
         // Incoming-banner containment, digit identity, and the authority token
         // lifecycle are owned by the in-binary fixtures that `--self-check` runs
