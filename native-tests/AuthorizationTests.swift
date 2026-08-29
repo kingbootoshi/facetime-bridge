@@ -123,70 +123,6 @@ struct AuthorizationTests {
             "ambiguous exact actions must remain visible to the caller and fail closed"
         )
 
-        let exactIncoming = node(
-            title: "FaceTime Audio",
-            description: target.handle,
-            value: target.name,
-            actions: [kAXPressAction as String]
-        )
-        let wrongIncoming = node(
-            title: "FaceTime Audio",
-            description: sameNameDifferentHandle.handle,
-            value: target.name,
-            actions: [kAXPressAction as String]
-        )
-        let spoofedHandleDisplayName = node(
-            title: "FaceTime Audio",
-            description: sameNameDifferentHandle.handle,
-            value: target.handle,
-            actions: [kAXPressAction as String]
-        )
-        let missedIncoming = node(
-            title: "FaceTime Audio",
-            description: target.handle,
-            value: target.name,
-            help: "Missed",
-            actions: [kAXPressAction as String]
-        )
-        let endedIncoming = node(
-            title: "FaceTime Audio",
-            description: target.handle,
-            value: target.name,
-            help: "Ended",
-            actions: [kAXPressAction as String]
-        )
-        let promptIncoming = node(
-            title: "FaceTime Audio",
-            description: target.handle,
-            value: target.name,
-            help: "Click to Call",
-            actions: [kAXPressAction as String]
-        )
-        let timedIncoming = node(
-            title: "FaceTime Audio",
-            description: target.handle,
-            value: target.name,
-            help: "00:03",
-            actions: [kAXPressAction as String]
-        )
-        require(authorizedIncomingNodes(on: surface([exactIncoming]), target: target).count == 1, "exact incoming handle must authorize")
-        require(
-            authorizedIncomingNodes(on: surface([spoofedHandleDisplayName]), target: target).isEmpty,
-            "a different caller using the configured handle as a display name must fail"
-        )
-        require(authorizedIncomingNodes(on: surface([wrongIncoming]), target: target).isEmpty, "same incoming name with a different handle must fail")
-        require(authorizedIncomingNodes(on: surface([missedIncoming]), target: target).isEmpty, "Missed on another attribute must block answer")
-        require(authorizedIncomingNodes(on: surface([endedIncoming]), target: target).isEmpty, "Ended on another attribute must block answer")
-        require(authorizedIncomingNodes(on: surface([promptIncoming]), target: target).isEmpty, "Click to Call on another attribute must block answer")
-        require(authorizedIncomingNodes(on: surface([timedIncoming]), target: target).isEmpty, "a timer on another attribute must block answer")
-        require(
-            authorizedIncomingNodes(on: surface([exactIncoming, exactIncoming]), target: target).count == 2,
-            "ambiguous exact incoming actions must remain visible to the caller and fail closed"
-        )
-        require(
-            state(of: surface([exactIncoming, exactIncoming]), target: target).state == .unknown,
-            "ambiguous incoming actions must not produce an authorized ringing state"
-        )
 
         let connected = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "Connected")
         let wrongConnected = node(title: "FaceTime Audio", description: sameNameDifferentHandle.handle, value: target.name, help: "Connected")
@@ -195,22 +131,12 @@ struct AuthorizationTests {
         let disconnected = node(title: "FaceTime Audio", description: target.handle, value: target.name, help: "Disconnected")
         require(state(of: surface([disconnected]), target: target).state == .ended, "Disconnected must not match Connected")
 
-        let phoneOnly = node(title: "FaceTime Audio", description: phoneTarget.handle, help: "Connected")
-        let exactPhone = node(
-            title: "FaceTime Audio",
-            description: phoneTarget.handle,
-            value: phoneTarget.name,
-            help: "Connected"
-        )
-        require(!nodeAuthorizesTarget(phoneOnly, target: phoneTarget), "one text value must not prove both phone handle and name")
-        require(nodeAuthorizesTarget(exactPhone, target: phoneTarget), "distinct exact phone handle and name values must authorize")
-        let phoneDigitsInEmail = node(
-            title: "FaceTime Audio",
-            description: "attacker+15551234567@example.com",
-            value: phoneTarget.name,
-            help: "Connected"
-        )
-        require(!nodeAuthorizesTarget(phoneDigitsInEmail, target: phoneTarget), "phone digits inside an email must not authorize")
+        // Incoming-banner containment, digit identity, and the authority token
+        // lifecycle are owned by the in-binary fixtures that `--self-check` runs
+        // on every build; execute the same canonical proofs here.
+        require(identityDigitFixturePasses(), "identity digit fixtures must pass")
+        require(faceTimeIncomingFixturePasses(), "incoming banner containment fixtures must pass")
+        require(authorityLifecyclePasses(), "call authority lifecycle fixtures must pass")
 
         // Hangup is authority-gated: with no live pid-bound call authority
         // (granted only by an identity-verified answer/call press), it must

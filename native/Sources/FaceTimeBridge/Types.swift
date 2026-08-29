@@ -95,10 +95,20 @@ struct TargetIdentity {
         guard !name.isEmpty, name == trimmedName, name.count <= 512, !unsafeName else {
             throw ArgumentError.invalidTarget
         }
+        // The name corroborates the handle; a name that is (or whose digits
+        // normalize to) the handle would let one text value prove both.
+        let normalized = String(handle.filter(\.isNumber))
+        let nameDigits = String(name.filter(\.isNumber))
+        guard name.caseInsensitiveCompare(handle) != .orderedSame else {
+            throw ArgumentError.invalidTarget
+        }
+        if !normalized.isEmpty, !nameDigits.isEmpty,
+           nameDigits == normalized || nameDigits == String(normalized.suffix(10)) {
+            throw ArgumentError.invalidTarget
+        }
         self.handle = handle
         self.name = name
         self.authority = authority
-        let normalized = String(handle.filter(\.isNumber))
         digits = normalized.count >= 10 ? normalized : nil
         nationalDigits = normalized.count > 10 ? String(normalized.suffix(10)) : (normalized.count == 10 ? normalized : nil)
     }

@@ -77,8 +77,18 @@ private func withAuthority(_ evidence: StateEvidence) -> StateEvidence {
         clearAuthority("expired")
     }
     switch evidence.state {
-    case .idle, .ended:
-        clearAuthority("observed \(evidence.state)")
+    case .ended:
+        clearAuthority("observed ended")
+        return evidence
+    case .idle:
+        // Observed live 2026-08-29 19:24: the banner vanishes ~70ms after the
+        // authorized answer press, before the Phone process surface exists, so a
+        // pre-bind idle scan is the normal establishment gap. Idle only proves the
+        // call is over once the token has bound to a Phone pid; an unbound token
+        // is still cleared by confirmation timeouts and expiry.
+        if activeCallAuthority?.phonePid != nil {
+            clearAuthority("observed idle after bound call")
+        }
         return evidence
     case .connected where !evidence.authorized:
         guard let authority = activeCallAuthority, let pid = evidence.surface?.pid else { return evidence }
@@ -281,7 +291,12 @@ func authorityLifecyclePasses() -> Bool {
     guard activeCallAuthority == nil,
           !withAuthority(phoneEvidence(pid: 100)).authorized else { return false }
 
-    // An observed idle state clears the token.
+    // Idle before the token binds is the establishment gap: it must not clear.
+    activeCallAuthority = CallAuthority(granted: Date(), phonePid: nil)
+    _ = withAuthority(StateEvidence(state: .idle, duration: nil, surface: nil, authorized: false))
+    guard activeCallAuthority != nil else { return false }
+
+    // An observed idle state after pid binding clears the token.
     activeCallAuthority = CallAuthority(granted: Date(), phonePid: 100)
     _ = withAuthority(StateEvidence(state: .idle, duration: nil, surface: nil, authorized: false))
     guard activeCallAuthority == nil else { return false }

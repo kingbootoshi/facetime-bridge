@@ -29,18 +29,54 @@ private func normalizedDigits(_ text: String) -> String {
 // Digits are compared after removing duration tokens: a live call card appends a
 // running timer ("0:09", flight capture 2026-08-29T19-03-44) whose digits would
 // contaminate the sequence. Comparison stays whole-string equality - a longer
-// number that merely contains the handle must not authorize.
-private func strippedCallDigits(_ text: String) -> String {
+// number that merely contains the handle must not authorize. Digits embedded in
+// an identifier ("attacker+15551234567@example.com") prove an email identity,
+// not a phone identity: any "@" or a digit adjacent to a letter disqualifies
+// the text from phone-digit matching entirely.
+private func strippedCallDigits(_ text: String) -> String? {
+    guard !text.contains("@") else { return nil }
     let range = NSRange(text.startIndex..., in: text)
     let cleaned = durationExpression.stringByReplacingMatches(in: text, range: range, withTemplate: "")
+    let characters = Array(cleaned)
+    for (index, character) in characters.enumerated() where character.isNumber {
+        if index > 0 && characters[index - 1].isLetter { return nil }
+        if index + 1 < characters.count && characters[index + 1].isLetter { return nil }
+    }
     return normalizedDigits(cleaned)
+}
+
+// Case folding is ASCII-only so confusables (KELVIN SIGN, long s, diacritics)
+// never fold into a configured ASCII handle.
+private func asciiLowercased(_ text: String) -> [Character] {
+    text.map { $0.isASCII && $0.isUppercase ? Character($0.lowercased()) : $0 }
+}
+
+private func identifierExtending(_ character: Character) -> Bool {
+    character.isLetter || character.isNumber || ".-_+@".contains(character)
+}
+
+// The handle must appear as a whole token: an adjacent character that could
+// extend an email or handle means the text names a different identity that
+// merely embeds the configured one ("prefix-ann@example.com").
+private func containsHandleToken(_ text: String, _ handle: String) -> Bool {
+    let haystack = asciiLowercased(normalizedSemanticText(text))
+    let needle = asciiLowercased(normalizedSemanticText(handle))
+    guard !needle.isEmpty, haystack.count >= needle.count else { return false }
+    for start in 0...(haystack.count - needle.count) {
+        guard Array(haystack[start..<(start + needle.count)]) == needle else { continue }
+        let beforeOk = start == 0 || !identifierExtending(haystack[start - 1])
+        let end = start + needle.count
+        let afterOk = end == haystack.count || !identifierExtending(haystack[end])
+        if beforeOk && afterOk { return true }
+    }
+    return false
 }
 
 func identifiesTarget(_ text: String, target: TargetIdentity?) -> Bool {
     guard let target else { return false }
     if target.authority == .contactName && semanticContains(text, target.name) { return true }
-    if semanticContains(text, target.handle) { return true }
-    let digits = strippedCallDigits(text)
+    if containsHandleToken(text, target.handle) { return true }
+    guard let digits = strippedCallDigits(text), !digits.isEmpty else { return false }
     if let expected = target.digits, digits == expected { return true }
     if let expected = target.nationalDigits, digits == expected { return true }
     return false
@@ -137,7 +173,9 @@ func state(of surface: AXSurface, target: TargetIdentity?) -> StateEvidence {
         }) {
         return StateEvidence(state: .connected, duration: duration, surface: surface, authorized: false)
     }
-    if authorized && hasFaceTimeAudio && texts.contains(where: { containsAny($0, connectedLabels) }) {
+    // "Disconnected" semantically contains "Connected": an ended label on the
+    // same text must win before the connected substring rule.
+    if authorized && hasFaceTimeAudio && texts.contains(where: { containsAny($0, connectedLabels) && !containsAny($0, endedLabels) }) {
         return StateEvidence(state: .connected, duration: duration, surface: surface, authorized: true)
     }
     if authorized && hasFaceTimeAudio && texts.contains(where: { containsAny($0, dialingLabels) }) {
@@ -166,10 +204,20 @@ func state(of snapshot: AXSnapshot, target: TargetIdentity?) -> StateEvidence {
 func outgoingCandidates(in snapshot: AXSnapshot, target: TargetIdentity) -> [ActionCandidate] {
     snapshot.surfaces.flatMap { surface -> [ActionCandidate] in
         guard surface.bundleID == "com.apple.notificationcenterui",
-              state(of: surface, target: target).state == .prompt,
-              surfaceAuthorized(surface, target: target) else { return [] }
+              state(of: surface, target: target).state == .prompt else { return [] }
+        // ADR-0015 prohibits surface-wide authorization: the pressed action must
+        // itself carry the configured identity, or share its card container
+        // (parentIndex) with a node that does.
+        let cardParents = Set(surface.nodes.compactMap { node -> Int? in
+            guard node.texts.contains(where: { identifiesTarget($0, target: target) }) else { return nil }
+            return node.parentIndex
+        })
         return surface.nodes
-            .filter { semanticAction($0, labels: outgoingLabels) }
+            .filter { node in
+                semanticAction(node, labels: outgoingLabels)
+                    && (node.texts.contains { identifiesTarget($0, target: target) }
+                        || node.parentIndex.map(cardParents.contains) == true)
+            }
             .map { ActionCandidate(surface: surface, node: $0) }
     }
 }
