@@ -26,11 +26,21 @@ private func normalizedDigits(_ text: String) -> String {
     String(text.filter(\.isNumber))
 }
 
+// Digits are compared after removing duration tokens: a live call card appends a
+// running timer ("0:09", flight capture 2026-08-29T19-03-44) whose digits would
+// contaminate the sequence. Comparison stays whole-string equality - a longer
+// number that merely contains the handle must not authorize.
+private func strippedCallDigits(_ text: String) -> String {
+    let range = NSRange(text.startIndex..., in: text)
+    let cleaned = durationExpression.stringByReplacingMatches(in: text, range: range, withTemplate: "")
+    return normalizedDigits(cleaned)
+}
+
 func identifiesTarget(_ text: String, target: TargetIdentity?) -> Bool {
     guard let target else { return false }
     if target.authority == .contactName && semanticContains(text, target.name) { return true }
     if semanticContains(text, target.handle) { return true }
-    let digits = normalizedDigits(text)
+    let digits = strippedCallDigits(text)
     if let expected = target.digits, digits == expected { return true }
     if let expected = target.nationalDigits, digits == expected { return true }
     return false
@@ -163,6 +173,21 @@ func outgoingCandidates(in snapshot: AXSnapshot, target: TargetIdentity) -> [Act
             .map { ActionCandidate(surface: surface, node: $0) }
     }
 }
+func identityDigitFixturePasses() -> Bool {
+    let target = try! TargetIdentity(handle: "+15551234567", name: "Fixture Caller")
+    // Live call card: bidi isolates, formatted number, appended duration timer
+    // (shape from flight capture 2026-08-29T19-03-44).
+    guard identifiesTarget("\u{202A}+1 (555) 123-4567\u{202C}, FaceTime Audio - , 0:09", target: target),
+          identifiesTarget("+1 (555) 123-4567, FaceTime Audio", target: target),
+          identifiesTarget("(555) 123-4567", target: target) else { return false }
+    // A longer number merely containing the handle must not authorize,
+    // nor may timer digits complete a partial number.
+    guard !identifiesTarget("+91 555 123 45671, FaceTime Audio", target: target),
+          !identifiesTarget("+1 (555) 123-456, FaceTime Audio - , 7:00", target: target),
+          !identifiesTarget("Fixture Caller, FaceTime Audio - , 0:09", target: target) else { return false }
+    return true
+}
+
 
 func faceTimeIncomingFixturePasses() -> Bool {
     let element = AXUIElementCreateApplication(0)
