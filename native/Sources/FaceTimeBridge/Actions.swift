@@ -69,19 +69,23 @@ private func hasAnyOutgoingPrompt(_ snapshot: AXSnapshot) -> Bool {
 
 private func hasUnverifiedIncomingCall(_ snapshot: AXSnapshot) -> Bool {
     snapshot.surfaces.contains { surface in
-        guard surface.bundleID == "com.apple.notificationcenterui" else { return false }
-        return surface.nodes.contains { node in
-            node.role == "AXGenericElement"
-                && node.enabled
-                && node.actions.contains(kAXPressAction as String)
-                && node.texts.contains {
-                    semanticContains($0, "FaceTime Audio")
-                        && !semanticContains($0, "Click to Call")
-                        && !semanticContains($0, "left")
-                        && !semanticContains($0, "ended")
-                        && !semanticContains($0, "missed")
-                }
+        if surface.bundleID == "com.apple.FaceTime" {
+            return surface.nodes.contains(where: isIncomingAudioAction)
         }
+        guard surface.bundleID == "com.apple.notificationcenterui" else { return false }
+        return surface.nodes.contains { semanticAction($0, labels: answerLabels) }
+            || surface.nodes.contains { node in
+                node.role == "AXGenericElement"
+                    && node.enabled
+                    && node.actions.contains(kAXPressAction as String)
+                    && node.texts.contains {
+                        semanticContains($0, "FaceTime Audio")
+                            && !semanticContains($0, "Click to Call")
+                            && !semanticContains($0, "left")
+                            && !semanticContains($0, "ended")
+                            && !semanticContains($0, "missed")
+                    }
+            }
     }
 }
 
@@ -153,10 +157,26 @@ func answerTarget(_ target: TargetIdentity) -> ControlResult {
 }
 
 func hangupTarget(_ target: TargetIdentity) -> ControlResult {
-    _ = target
-    return failure(
-        command: .hangup,
-        code: "HANGUP_DISABLED",
-        message: "automatic hangup is disabled until a semantic Accessibility action can be verified"
-    )
+    let snapshot = scanAccessibility()
+    let current = state(of: snapshot, target: target)
+    guard current.state == .connected, current.authorized else {
+        return failure(command: .hangup, code: "NO_AUTHORIZED_CALL", message: "no authorized connected call is active", evidence: current)
+    }
+    let phoneSurfaces = snapshot.surfaces.filter {
+        $0.bundleID == "com.apple.mobilephone"
+            && surfaceAuthorized($0, target: target)
+            && state(of: $0, target: target).state == .connected
+    }
+    guard phoneSurfaces.count == 1, let phone = phoneSurfaces.first else {
+        return failure(command: .hangup, code: "AMBIGUOUS_PHONE_SURFACE", message: "the authorized call did not map to one Phone process", evidence: current)
+    }
+    guard let application = NSRunningApplication(processIdentifier: phone.pid),
+          application.bundleIdentifier == "com.apple.mobilephone",
+          application.terminate() else {
+        return failure(command: .hangup, code: "TERMINATE_FAILED", message: "Phone refused graceful termination", evidence: current)
+    }
+    guard let confirmed = waitForState([.idle, .ended], target: target, deadline: Date().addingTimeInterval(confirmationDeadline)) else {
+        return failure(command: .hangup, code: "CONFIRMATION_TIMEOUT", message: "the call did not enter ended state", evidence: current)
+    }
+    return result(command: .hangup, ok: true, evidence: confirmed, action: .hungUp, message: "authorized call ended")
 }

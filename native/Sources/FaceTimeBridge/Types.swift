@@ -68,13 +68,19 @@ struct ControlResult: Encodable {
     }
 }
 
+enum CallerAuthority: String {
+    case exactHandle = "exact-handle"
+    case contactName = "contact-name"
+}
+
 struct TargetIdentity {
     let handle: String
     let name: String
     let digits: String?
     let nationalDigits: String?
+    let authority: CallerAuthority
 
-    init(handle: String, name: String) throws {
+    init(handle: String, name: String, authority: CallerAuthority = .exactHandle) throws {
         let trimmedHandle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let e164 = handle.range(of: #"^\+[1-9]\d{7,14}$"#, options: .regularExpression) != nil
@@ -83,25 +89,18 @@ struct TargetIdentity {
             options: .regularExpression
         ) != nil
         let unsafeName = name.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F }
-        let normalizedHandleDigits = String(handle.filter(\.isNumber))
-        let normalizedNameDigits = String(name.filter(\.isNumber))
         guard handle == trimmedHandle, handle.count <= 512, e164 || email else {
             throw ArgumentError.invalidTarget
         }
-        guard !name.isEmpty,
-              name == trimmedName,
-              name.count <= 512,
-              !unsafeName,
-              name.lowercased() != handle.lowercased(),
-              !(e164 && normalizedNameDigits == normalizedHandleDigits) else {
+        guard !name.isEmpty, name == trimmedName, name.count <= 512, !unsafeName else {
             throw ArgumentError.invalidTarget
         }
         self.handle = handle
         self.name = name
-        digits = e164 ? normalizedHandleDigits : nil
-        nationalDigits = e164 && normalizedHandleDigits.count > 10
-            ? String(normalizedHandleDigits.suffix(10))
-            : nil
+        self.authority = authority
+        let normalized = String(handle.filter(\.isNumber))
+        digits = normalized.count >= 10 ? normalized : nil
+        nationalDigits = normalized.count > 10 ? String(normalized.suffix(10)) : (normalized.count == 10 ? normalized : nil)
     }
 }
 
@@ -120,6 +119,31 @@ struct AXNode {
     let help: String
     let enabled: Bool
     let actions: [String]
+    let parentIndex: Int?
+
+    init(
+        element: AXUIElement,
+        role: String,
+        identifier: String,
+        title: String,
+        description: String,
+        value: String,
+        help: String,
+        enabled: Bool,
+        actions: [String],
+        parentIndex: Int? = nil
+    ) {
+        self.element = element
+        self.role = role
+        self.identifier = identifier
+        self.title = title
+        self.description = description
+        self.value = value
+        self.help = help
+        self.enabled = enabled
+        self.actions = actions
+        self.parentIndex = parentIndex
+    }
 
     var texts: [String] {
         [title, description, value, help, identifier].filter { !$0.isEmpty }

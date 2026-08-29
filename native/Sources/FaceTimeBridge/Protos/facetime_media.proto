@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package facetimebridge.v1;
+
+service FaceTimeMedia {
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc Control(ControlRequest) returns (ControlResponse);
+  rpc WaitIncoming(WaitIncomingRequest) returns (stream CallEvent);
+  rpc Audio(stream AudioPacket) returns (stream AudioPacket);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ready = 1;
+  string input_device = 2;
+  string output_device = 3;
+}
+
+enum ControlCommand {
+  CONTROL_COMMAND_UNSPECIFIED = 0;
+  CONTROL_COMMAND_PROBE = 1;
+  CONTROL_COMMAND_CALL = 2;
+  CONTROL_COMMAND_ANSWER = 3;
+  CONTROL_COMMAND_HANGUP = 4;
+}
+
+message ControlRequest {
+  ControlCommand command = 1;
+}
+
+message ControlResponse {
+  bool ok = 1;
+  string state = 2;
+  bool authorized = 3;
+  string action = 4;
+  string error_code = 5;
+  string message = 6;
+}
+
+message WaitIncomingRequest {}
+
+message CallEvent {
+  string state = 1;
+  bool authorized = 2;
+  string error_code = 3;
+  int64 observed_at_ms = 4;
+}
+
+enum AudioPacketKind {
+  AUDIO_PACKET_KIND_UNSPECIFIED = 0;
+  AUDIO_PACKET_KIND_START = 1;
+  AUDIO_PACKET_KIND_CAPTURE = 2;
+  AUDIO_PACKET_KIND_PLAYBACK = 3;
+  AUDIO_PACKET_KIND_CLEAR = 4;
+  AUDIO_PACKET_KIND_STOP = 5;
+  AUDIO_PACKET_KIND_EVENT = 6;
+}
+
+message AudioPacket {
+  string call_id = 1;
+  AudioPacketKind kind = 2;
+  bytes pcm16 = 3;
+  uint32 sample_rate = 4;
+  uint32 channels = 5;
+  uint64 sequence = 6;
+  string event = 7;
+}
