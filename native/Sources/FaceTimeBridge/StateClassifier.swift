@@ -114,6 +114,13 @@ func state(of surface: AXSurface, target: TargetIdentity?) -> StateEvidence {
     if authorizedLeft { return StateEvidence(state: .ended, duration: nil, surface: surface, authorized: true) }
     if ringing { return StateEvidence(state: .ringing, duration: nil, surface: surface, authorized: true) }
     if prompt { return StateEvidence(state: .prompt, duration: nil, surface: surface, authorized: true) }
+    // Observed live 2026-08-29 09:17: an answered call keeps the banner card and
+    // swaps Answer/Decline for Mute/End buttons; no "Connected" text ever appears.
+    if authorized && hasFaceTimeAudio && surface.nodes.contains(where: { node in
+        node.role == "AXButton" && node.texts.contains { containsAny($0, ["End", "Mute"]) }
+    }) {
+        return StateEvidence(state: .connected, duration: duration, surface: surface, authorized: true)
+    }
     if authorized && hasFaceTimeAudio && texts.contains(where: { containsAny($0, connectedLabels) }) {
         return StateEvidence(state: .connected, duration: duration, surface: surface, authorized: true)
     }
