@@ -17,4 +17,7 @@ These records define the repository's engineering rules. They contain no source-
 | [0011](0011-tests-prove-contracts-through-real-seams.md) | Tests prove observable contracts |
 | [0012](0012-probe-workbench-dogfood.md) | Probe real platform seams |
 | [0013](0013-one-ingress-envelope.md) | One active audio bridge |
-| [0014](0014-data-authority-is-structural.md) | Identity authority is structural |
+| [0014](0014-data-authority-is-structural.md) | One call-card owns identity, action, and state |
+| [0015](0015-semantic-control-lifecycle.md) | Mutating controls are semantic lifecycle contracts |
+| [0016](0016-setup-does-not-install-system-packages.md) | Setup does not install system packages |
+| [0017](0017-opt-in-local-call-recording.md) | Call recording is explicit, local, and non-fatal |

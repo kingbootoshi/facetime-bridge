@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "capturedOn": {
+    "productVersion": "26.4",
+    "buildVersion": "25E246"
+  },
+  "scenario": "facetime-audio URL opened for <AUTHORIZED_E164> before Call",
+  "surface": {
+    "process": "Notification Center",
+    "bundleID": "com.apple.notificationcenterui",
+    "nodes": [
+      {
+        "path": "0.0.0.0.0",
+        "role": "AXGroup",
+        "subrole": "AXNotificationCenterBanner",
+        "identifier": "FACETIME_NOTIFICATION",
+        "description": "FACETIME_NOTIFICATION",
+        "enabled": true,
+        "actions": [],
+        "childCount": 0
+      }
+    ]
+  },
+  "observed": {
+    "authorizedE164Exposed": false,
+    "semanticCallActionExposed": false
+  }
+}

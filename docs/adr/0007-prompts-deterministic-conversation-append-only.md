@@ -4,8 +4,8 @@ Status: Accepted
 
 ## Decision
 
-The secure local JSON file is the only target authority. The native helper receives an exact target snapshot through argv. Browser device selection uses explicit labels and format constraints.
+Caller authority enters through `FACETIME_BRIDGE_AUTHORIZED_CALLER_E164` only. The value is one exact E.164 phone number, supplied independently to every bridge process. Browser device selection uses fixed labels and format constraints.
 
 ## Enforcement
 
-Strict config schema and unknown-key rejection.
+Strict environment loading rejects missing, malformed, non-E.164, and alternate identity inputs.

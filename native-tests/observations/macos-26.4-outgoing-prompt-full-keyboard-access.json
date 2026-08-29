@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "capturedOn": {
+    "productVersion": "26.4",
+    "buildVersion": "25E246"
+  },
+  "scenario": "facetime-audio URL opened for <AUTHORIZED_E164> before Call",
+  "accessibility": {
+    "fullKeyboardAccessEnabled": true
+  },
+  "surface": {
+    "process": "Notification Center",
+    "bundleID": "com.apple.notificationcenterui",
+    "proxy": {
+      "role": "AXGroup",
+      "subrole": "iOSContentGroup",
+      "childCount": 1
+    },
+    "callCard": {
+      "role": "AXGroup",
+      "enabled": true,
+      "childCount": 4,
+      "actions": [
+        "AXScrollToVisible",
+        "AXCancel",
+        "AXShowMenu"
+      ],
+      "children": [
+        {
+          "role": "AXGenericElement",
+          "description": "FaceTime Audio",
+          "enabled": true,
+          "actions": ["AXPress", "AXScrollToVisible", "AXCancel", "AXShowMenu"]
+        },
+        {
+          "role": "AXGenericElement",
+          "description": "<AUTHORIZED_E164>",
+          "enabled": true,
+          "actions": ["AXPress", "AXScrollToVisible", "AXCancel", "AXShowMenu"]
+        },
+        {
+          "role": "AXButton",
+          "description": "Call",
+          "enabled": true,
+          "actions": ["AXPress", "AXScrollToVisible", "AXCancel", "AXShowMenu"]
+        },
+        {
+          "role": "AXButton",
+          "description": "Cancel",
+          "enabled": true,
+          "actions": ["AXPress", "AXScrollToVisible", "AXCancel", "AXShowMenu"]
+        }
+      ]
+    }
+  },
+  "observed": {
+    "authorizedE164Exposed": true,
+    "authorizedE164ExactMatch": true,
+    "semanticCallActionExposed": true,
+    "semanticCancelActionExposed": true,
+    "identityAndActionsShareCallCard": true
+  }
+}

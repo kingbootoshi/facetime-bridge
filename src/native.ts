@@ -2,12 +2,11 @@ import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { ConfigError, loadConfig } from "./config.ts";
+import { AUTHORIZED_CALLER_E164_ENV, loadAuthorizedCallerE164 } from "./config.ts";
 import { decodeUtf8, runProcess } from "./process.ts";
 import {
   CALL_STATES,
   type ControlCommand,
-  type LocalConfig,
   type NativeAction,
   type NativeResponse,
   type ProcessResult,
@@ -97,31 +96,26 @@ export function parseNativeResponse(result: ProcessResult, expected: ControlComm
   return record as unknown as NativeResponse;
 }
 
-function nativeArgv(command: ControlCommand, binary: string, config?: LocalConfig): [string, ...string[]] {
-  const argv: [string, ...string[]] = [binary, command];
-  if (config) argv.push("--target-handle", config.targetHandle, "--target-name", config.targetName);
-  return argv;
-}
-
 export async function runControl(
   command: ControlCommand,
-  options: { binary?: string; configPath?: string; timeoutMs?: number } = {},
+  options: {
+    binary?: string;
+    environment?: Readonly<Record<string, string | undefined>>;
+    timeoutMs?: number;
+  } = {},
 ): Promise<NativeResponse> {
   if (!(command in COMMANDS)) throw new NativeProtocolError("unsupported control command");
+  const authorizedCallerE164 = loadAuthorizedCallerE164(options.environment);
+  const environment = {
+    ...(options.environment ?? process.env),
+    [AUTHORIZED_CALLER_E164_ENV]: authorizedCallerE164,
+  };
   const binary = options.binary ?? helperPath();
   await access(binary, constants.X_OK).catch(() => {
     throw new NativeProtocolError("native helper is unavailable; run setup");
   });
-  let config: LocalConfig | undefined;
-  try {
-    config = await loadConfig(options.configPath);
-  } catch (error) {
-    if (!(command === "probe" && error instanceof ConfigError && error.code === "CONFIG_MISSING")) throw error;
-  }
-  if (command !== "probe" && !config) {
-    throw new ConfigError("CONFIG_MISSING", "control commands require a configured identity");
-  }
-  const result = await runProcess(nativeArgv(command, binary, config), {
+  const result = await runProcess([binary, command], {
+    env: environment,
     timeoutMs: options.timeoutMs ?? (command === "probe" ? 8_000 : 45_000),
     stdoutByteCap: 64 * 1024,
     stderrByteCap: 16 * 1024,
