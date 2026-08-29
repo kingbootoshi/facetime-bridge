@@ -54,8 +54,13 @@ export const audioFormat = {
   sampleRate: 24_000,
   channels: 1,
   encoding: "s16le",
-  /** Typical daemon packet cadence: ~100 ms => 2400 samples => 4800 bytes. */
-  bytesPerPacket: 4_800,
+  /**
+   * Nominal daemon packet cadence: ~20 ms => 480 samples => 960 bytes
+   * (AudioBridge.swift taps 960 frames at 48 kHz and halves to 24 kHz).
+   * AVAudioEngine may coalesce buffers - reframe by sample count, never
+   * by packet boundaries.
+   */
+  bytesPerPacket: 960,
 } as const;
 
 export const audioPacketKind = {

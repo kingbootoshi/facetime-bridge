@@ -20,12 +20,13 @@ describe("bridge adapter contract", () => {
   });
 
   test("audio format matches the native daemon transport", () => {
-    // AudioBridge.transportSampleRate in native/Sources/FaceTimeBridge/AudioBridge.swift
+    // AudioBridge.swift: transportSampleRate 24 kHz; the capture tap takes
+    // 960 frames at 48 kHz and halves them => 480 samples => 960 bytes.
     expect(audioFormat).toEqual({
       sampleRate: 24_000,
       channels: 1,
       encoding: "s16le",
-      bytesPerPacket: 4_800,
+      bytesPerPacket: 960,
     });
   });
 
