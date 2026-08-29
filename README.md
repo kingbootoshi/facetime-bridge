@@ -120,7 +120,7 @@ Control commands emit one strict JSON object. A failed authorization or an ambig
 - `call` opens only the configured handle. It presses only one Notification Center action whose same Accessibility node contains the exact configured email or E.164 handle and `Click to Call`.
 - `answer` presses only one incoming Notification Center action whose same node contains the exact configured handle. It does not authorize from the display name alone.
 - Multiple exact action matches fail with `AMBIGUOUS_ACTION`.
-- `hangup` is disabled with `HANGUP_DISABLED` until a stable semantic Accessibility action is verified. It never terminates the Phone process.
+- `hangup` requires a live call authority: a pid-bound in-process token granted only by an identity-verified `answer` or `call` press. It gracefully terminates only that bound Phone process (macOS exposes no reachable semantic hangup control once the call banner disappears) and refuses with `NO_AUTHORIZED_CALL` otherwise.
 - No command uses coordinate clicks.
 - Missing, unknown, or ambiguous UI state fails closed.
 

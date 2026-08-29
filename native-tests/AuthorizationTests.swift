@@ -212,8 +212,11 @@ struct AuthorizationTests {
         )
         require(!nodeAuthorizesTarget(phoneDigitsInEmail, target: phoneTarget), "phone digits inside an email must not authorize")
 
+        // Hangup is authority-gated: with no live pid-bound call authority
+        // (granted only by an identity-verified answer/call press), it must
+        // refuse before selecting any process to terminate.
         let hangup = hangupTarget(target)
-        require(!hangup.ok && hangup.errorCode == "HANGUP_DISABLED", "unsafe process-termination hangup must be disabled")
+        require(!hangup.ok && hangup.errorCode == "NO_AUTHORIZED_CALL", "hangup without live call authority must refuse")
 
         print("native authorization regressions passed")
     }
