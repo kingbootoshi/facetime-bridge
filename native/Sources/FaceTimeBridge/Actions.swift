@@ -242,6 +242,9 @@ func hangupTarget(_ target: TargetIdentity) -> ControlResult {
         return failure(command: .hangup, code: "TERMINATE_FAILED", message: "Phone refused graceful termination", evidence: current)
     }
     guard let confirmed = waitForState([.idle, .ended], target: target, deadline: Date().addingTimeInterval(confirmationDeadline)) else {
+        // Termination was already requested; the token must not outlive this
+        // command whether or not macOS confirmed the ended state in time.
+        clearAuthority("hangup confirmation timeout")
         return failure(command: .hangup, code: "CONFIRMATION_TIMEOUT", message: "the call did not enter ended state", evidence: current)
     }
     return result(command: .hangup, ok: true, evidence: confirmed, action: .hungUp, message: "authorized call ended")
