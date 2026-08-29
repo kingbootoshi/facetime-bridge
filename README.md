@@ -124,6 +124,19 @@ The Bun CLI delegates each control command to `~/.local/bin/facetime-bridge-ax`.
 
 Apple can change private FaceTime UI and Accessibility labels. This project treats such changes as unavailable behavior instead of guessing.
 
+## Plug in your voice software
+
+The bridge owns FaceTime alone; you bring the AI. One gRPC surface
+(`facetimebridge.v1` over a Unix socket) carries call control, call events,
+and bidirectional 24 kHz PCM. A typed TypeScript base adapter ships at
+[`src/bridge.ts`](src/bridge.ts), and the proto works from any language —
+including Python voice stacks like [Pipecat](https://github.com/pipecat-ai/pipecat).
+
+**Read [`docs/INTEGRATION.md`](docs/INTEGRATION.md)** — the complete
+contract: audio format, call lifecycle, fail-closed authority codes, a
+TypeScript quickstart, and a Pipecat transport recipe. If you are an agent
+integrating this bridge, that file is your single entry point.
+
 ## Provider-neutral audio
 
 Start the local workbench:

@@ -14,5 +14,9 @@
   },
   "engines": {
     "bun": ">=1.2.0"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1"
   }
 }
