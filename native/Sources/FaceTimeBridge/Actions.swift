@@ -246,3 +246,49 @@ func hangupTarget(_ target: TargetIdentity) -> ControlResult {
     }
     return result(command: .hangup, ok: true, evidence: confirmed, action: .hungUp, message: "authorized call ended")
 }
+
+func authorityLifecyclePasses() -> Bool {
+    func phoneEvidence(pid: pid_t) -> StateEvidence {
+        StateEvidence(
+            state: .connected,
+            duration: nil,
+            surface: AXSurface(pid: pid, process: "Phone", bundleID: "com.apple.mobilephone", nodes: []),
+            authorized: false
+        )
+    }
+    defer { activeCallAuthority = nil }
+
+    // A manual call with no token must stay unauthorized.
+    activeCallAuthority = nil
+    guard !withAuthority(phoneEvidence(pid: 100)).authorized else { return false }
+
+    // A live token binds to the first connected Phone pid and upgrades it.
+    activeCallAuthority = CallAuthority(granted: Date(), phonePid: nil)
+    guard withAuthority(phoneEvidence(pid: 100)).authorized,
+          activeCallAuthority?.phonePid == 100 else { return false }
+
+    // A different Phone pid under the same token must not upgrade.
+    guard !withAuthority(phoneEvidence(pid: 200)).authorized else { return false }
+
+    // The bound pid still upgrades.
+    guard withAuthority(phoneEvidence(pid: 100)).authorized else { return false }
+
+    // An observed ended state clears the token.
+    _ = withAuthority(StateEvidence(state: .ended, duration: nil, surface: nil, authorized: false))
+    guard activeCallAuthority == nil,
+          !withAuthority(phoneEvidence(pid: 100)).authorized else { return false }
+
+    // An observed idle state clears the token.
+    activeCallAuthority = CallAuthority(granted: Date(), phonePid: 100)
+    _ = withAuthority(StateEvidence(state: .idle, duration: nil, surface: nil, authorized: false))
+    guard activeCallAuthority == nil else { return false }
+
+    // An expired token never upgrades.
+    activeCallAuthority = CallAuthority(granted: Date(timeIntervalSinceNow: -authorityLifetime - 1), phonePid: 100)
+    guard !withAuthority(phoneEvidence(pid: 100)).authorized, activeCallAuthority == nil else { return false }
+
+    // clearAuthority is what confirm timeouts call.
+    activeCallAuthority = CallAuthority(granted: Date(), phonePid: nil)
+    clearAuthority("self-check")
+    return activeCallAuthority == nil
+}

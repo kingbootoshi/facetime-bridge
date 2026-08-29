@@ -20,6 +20,7 @@ if CommandLine.arguments.dropFirst().elementsEqual(["--self-check"]) {
         !shouldAnswerIncoming(state: "ringing", authorized: false),
         !shouldAnswerIncoming(state: "ambiguous", authorized: true),
         faceTimeIncomingFixturePasses(),
+        authorityLifecyclePasses(),
         AudioBridge.inputDeviceName == "BlackHole 16ch",
         AudioBridge.outputDeviceName == "BlackHole 2ch",
         AudioBridge.transportSampleRate == 24_000 else {
