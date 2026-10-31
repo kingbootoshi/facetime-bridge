@@ -9,14 +9,15 @@
     "facetime-bridge": "src/cli.ts"
   },
   "scripts": {
+    "check:deps": "bun scripts/check-exact-deps.mjs",
     "start": "bun run src/cli.ts",
-    "test": "bun test"
+    "test": "bun run check:deps && bun test"
   },
   "engines": {
     "bun": ">=1.2.0"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.14.4",
-    "@grpc/proto-loader": "^0.8.1"
+    "@grpc/grpc-js": "1.14.4",
+    "@grpc/proto-loader": "0.8.1"
   }
 }

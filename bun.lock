@@ -5,8 +5,8 @@
     "": {
       "name": "facetime-bridge",
       "dependencies": {
-        "@grpc/grpc-js": "^1.14.4",
-        "@grpc/proto-loader": "^0.8.1",
+        "@grpc/grpc-js": "1.14.4",
+        "@grpc/proto-loader": "0.8.1",
       },
     },
   },
